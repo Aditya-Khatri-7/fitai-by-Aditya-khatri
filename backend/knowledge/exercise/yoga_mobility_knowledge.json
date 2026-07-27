@@ -1,0 +1,35 @@
+[
+  {
+    "id": "yoga_01",
+    "title": "Cat-Cow Stretch (Marjaryasana-Bitilasana)",
+    "category": "yoga",
+    "focusArea": "Spine & Core",
+    "difficulty": "Beginner",
+    "pregnancySafe": true,
+    "seniorSafe": true,
+    "instructions": "In tabletop position, inhale arching back downward, exhale rounding spine upward smoothly.",
+    "benefits": "Mobilizes lumbar spine, relieves lower back tension, safe for post-op early rehabilitation."
+  },
+  {
+    "id": "yoga_02",
+    "title": "Warrior II (Virabhadrasana II)",
+    "category": "yoga",
+    "focusArea": "Hips & Legs",
+    "difficulty": "Intermediate",
+    "pregnancySafe": true,
+    "seniorSafe": false,
+    "instructions": "Wide stance, turn front foot out 90 degrees, bend front knee over ankle, extend arms parallel to floor.",
+    "benefits": "Builds quad and hip endurance, improves balance and ankle joint stability."
+  },
+  {
+    "id": "yoga_03",
+    "title": "Child's Pose (Balasana)",
+    "category": "yoga",
+    "focusArea": "Restorative",
+    "difficulty": "Beginner",
+    "pregnancySafe": true,
+    "seniorSafe": true,
+    "instructions": "Kneel on mat, big toes touching, lower torso down between thighs, forehead resting on floor.",
+    "benefits": "Deep nervous system relaxation, hip opener, lowers elevated stress index."
+  }
+]

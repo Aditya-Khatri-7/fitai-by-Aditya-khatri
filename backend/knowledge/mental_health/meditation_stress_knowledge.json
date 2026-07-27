@@ -1,0 +1,20 @@
+[
+  {
+    "id": "med_01",
+    "title": "4-7-8 Parasympathetic Breathing",
+    "category": "meditation",
+    "durationMins": 5,
+    "focusArea": "Stress Reduction & Recovery",
+    "instructions": "Inhale through nose for 4s, hold breath for 7s, exhale slowly through mouth for 8s.",
+    "benefits": "Triggers vagus nerve activation, rapidly lowering elevated heart rate and cortisol levels."
+  },
+  {
+    "id": "med_02",
+    "title": "Body Scan Mindfulness Meditation",
+    "category": "meditation",
+    "durationMins": 10,
+    "focusArea": "Sleep Quality Optimization",
+    "instructions": "Lie comfortably, slowly bring conscious awareness to each body part from toes to head releasing tension.",
+    "benefits": "Improves deep sleep percentage and CNS recovery score prior to sleep."
+  }
+]

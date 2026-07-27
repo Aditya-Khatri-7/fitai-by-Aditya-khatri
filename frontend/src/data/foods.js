@@ -1,0 +1,10 @@
+export const FOOD_DATABASE = [
+  { id: 'oatmeal_berries', name: 'Oatmeal with Blueberries & Chia', category: 'breakfast', calories: 380, protein: 14, carbs: 62, fat: 8, fiber: 10, glycemicIndex: 'low', sodiumMg: 40, suitableFor: ['hypertension', 'diabetes_type2', 'pcos'] },
+  { id: 'egg_white_toast', name: 'Scrambled Egg Whites on Whole Grain Toast', category: 'breakfast', calories: 310, protein: 26, carbs: 32, fat: 6, fiber: 5, glycemicIndex: 'low', sodiumMg: 280, suitableFor: ['hypertension', 'diabetes_type2'] },
+  { id: 'greek_yogurt_bowl', name: 'Greek Yogurt & Almond Protein Bowl', category: 'breakfast', calories: 340, protein: 32, carbs: 24, fat: 12, fiber: 4, glycemicIndex: 'low', sodiumMg: 90, suitableFor: ['hypertension', 'pcos'] },
+  { id: 'grilled_chicken_salad', name: 'Grilled Chicken Mediterranean Quinoa Bowl', category: 'lunch', calories: 520, protein: 46, carbs: 48, fat: 16, fiber: 8, glycemicIndex: 'low', sodiumMg: 390, suitableFor: ['hypertension', 'diabetes_type2', 'heart_disease'] },
+  { id: 'salmon_asparagus', name: 'Baked Wild Salmon with Roasted Asparagus & Sweet Potato', category: 'dinner', calories: 580, protein: 44, carbs: 42, fat: 22, fiber: 7, glycemicIndex: 'low', sodiumMg: 210, suitableFor: ['hypertension', 'diabetes_type2', 'heart_disease', 'pcos'] },
+  { id: 'tofu_stir_fry', name: 'Tofu & Broccoli Brown Rice Stir-Fry', category: 'dinner', calories: 440, protein: 24, carbs: 56, fat: 14, fiber: 9, glycemicIndex: 'low', sodiumMg: 310, suitableFor: ['diabetes_type2', 'hypertension'] },
+  { id: 'whey_banana_shake', name: 'Whey Protein Shake with Banana & Peanut Butter', category: 'snack', calories: 320, protein: 30, carbs: 36, fat: 8, fiber: 4, glycemicIndex: 'medium', sodiumMg: 150, suitableFor: ['muscle_gain'] },
+  { id: 'apple_almonds', name: 'Sliced Apple with Raw Almonds', category: 'snack', calories: 190, protein: 5, carbs: 24, fat: 9, fiber: 5, glycemicIndex: 'low', sodiumMg: 2, suitableFor: ['hypertension', 'diabetes_type2', 'pcos'] }
+];

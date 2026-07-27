@@ -1,0 +1,22 @@
+[
+  {
+    "id": "rehab_01",
+    "title": "Quad Setting Iso-Contraction",
+    "category": "rehabilitation",
+    "jointFocus": "Knee",
+    "phase": "Post-Op Phase 1",
+    "instructions": "Lie flat with towel under knee. Tighten thigh muscle pushing back of knee into towel for 5 seconds.",
+    "contraindications": ["None - Passive Quad Setting"],
+    "clinicalNotes": "Safely reactivates VMO muscle fibers following ACL or knee arthroscopy without joint rotational shear."
+  },
+  {
+    "id": "rehab_02",
+    "title": "Seated Pendulum Shoulder Swings",
+    "category": "rehabilitation",
+    "jointFocus": "Shoulder",
+    "phase": "Post-Op Phase 1",
+    "instructions": "Lean forward over table, let affected arm hang down passively, gently sway arm in small circles.",
+    "contraindications": ["Active arm lifting"],
+    "clinicalNotes": "Maintains humerus synovial fluid circulation following rotator cuff repair."
+  }
+]

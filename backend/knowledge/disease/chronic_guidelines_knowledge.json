@@ -1,0 +1,16 @@
+[
+  {
+    "id": "chronic_01",
+    "condition": "Hypertension",
+    "dietRules": "Limit sodium strictly < 2000mg/day. Increase potassium rich foods (spinach, sweet potatoes).",
+    "exerciseRules": "Avoid heavy Valsalva maneuvers and max-effort isometric holds. Maintain steady breathing.",
+    "recoveryImpact": "Systolic BP > 140 applying -15 pts penalty to daily recovery capacity."
+  },
+  {
+    "id": "chronic_02",
+    "condition": "Type 2 Diabetes",
+    "dietRules": "Enforce low glycemic index carbohydrates with high dietary fiber (> 30g/day).",
+    "exerciseRules": "Include 15+ minutes of continuous aerobic muscle glucose utilization.",
+    "recoveryImpact": "Fasting blood sugar > 180 applying -10 pts penalty to daily recovery capacity."
+  }
+]

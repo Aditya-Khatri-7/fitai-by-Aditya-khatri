@@ -1,0 +1,3 @@
+[submodule "forgot-password"]
+	path = forgot-password
+	url = https://github.com/Aditya-Khatri-7/forgot-password.git

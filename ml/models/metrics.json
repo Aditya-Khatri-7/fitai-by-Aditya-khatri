@@ -1,0 +1,16 @@
+{
+  "recovery": {
+    "mae": 2.2496667070909546,
+    "rmse": 2.775565202835543,
+    "r2": 0.9049002646892159
+  },
+  "injury": {
+    "f1": 1.0
+  },
+  "recommender": {
+    "count": 2918,
+    "embedding_dim": 384,
+    "encoder": "all-MiniLM-L6-v2"
+  },
+  "trained_at": "2026-07-27T16:56:19Z"
+}

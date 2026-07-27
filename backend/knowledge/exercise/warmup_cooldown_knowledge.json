@@ -1,0 +1,20 @@
+[
+  {
+    "id": "warmup_01",
+    "title": "Dynamic Arm Circles & Shoulder Rolls",
+    "category": "warmup",
+    "targetAudience": ["General", "Senior Citizen", "Pregnancy Safe"],
+    "durationMins": 3,
+    "instructions": "Stand tall, rotate arms in 15-second forward circles followed by backward circles.",
+    "benefits": "Lubricates subacromial shoulder joints prior to upper body resistance training."
+  },
+  {
+    "id": "cooldown_01",
+    "title": "Seated Hamstring & Calf Static Stretch",
+    "category": "cooldown",
+    "targetAudience": ["General", "Senior Citizen", "Post-Surgery"],
+    "durationMins": 4,
+    "instructions": "Sit on floor with legs extended, reach gently toward toes holding for 30 seconds without bouncing.",
+    "benefits": "Reduces post-workout lactic acid buildup and prevents hamstring tightness."
+  }
+]

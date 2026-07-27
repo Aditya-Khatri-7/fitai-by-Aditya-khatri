@@ -1,0 +1,47 @@
+[
+  {
+    "id": "ifct_01",
+    "name": "Moong Dal Tadka with Brown Rice",
+    "region": "North India",
+    "category": "lunch",
+    "dietType": "vegetarian",
+    "calories": 420,
+    "protein": 18,
+    "carbs": 68,
+    "fat": 8,
+    "fiber": 12,
+    "sodiumMg": 280,
+    "glycemicIndex": "low",
+    "clinicalNotes": "High soluble fiber and protein ratio. Low glycemic load suitable for Type 2 Diabetes and DASH hypertension guidelines."
+  },
+  {
+    "id": "ifct_02",
+    "name": "Palak Paneer with Whole Wheat Roti",
+    "region": "North India",
+    "category": "dinner",
+    "dietType": "vegetarian",
+    "calories": 480,
+    "protein": 24,
+    "carbs": 42,
+    "fat": 22,
+    "fiber": 9,
+    "sodiumMg": 310,
+    "glycemicIndex": "low",
+    "clinicalNotes": "Rich in bioavailable calcium, iron, and folic acid. Excellent for bone density, Senior Citizens, and Pregnancy-Safe nutrition."
+  },
+  {
+    "id": "ifct_03",
+    "name": "Steamed Idli with Sambar & Coconut Chutney",
+    "region": "South India",
+    "category": "breakfast",
+    "dietType": "vegan",
+    "calories": 340,
+    "protein": 12,
+    "carbs": 58,
+    "fat": 6,
+    "fiber": 8,
+    "sodiumMg": 240,
+    "glycemicIndex": "medium",
+    "clinicalNotes": "Fermented lentil-rice batter provides gut-friendly probiotics and easy digestibility for post-surgery digestive recovery."
+  }
+]
