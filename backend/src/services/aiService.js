@@ -2,8 +2,116 @@ import { geminiModel } from '../config/gemini.js';
 import { buildRAGPrompt } from './ragEngine.js';
 import { generateWithConfiguredProvider, AI_PROVIDER_ENABLED, AI_PROVIDER } from '../config/aiProvider.js';
 import { classifyLocally } from './localCoachClassifier.js';
-import { predictInjury } from './mlClient.js';
+import { predictInjury, recommendExercises } from './mlClient.js';
 import { evaluateMealTiming } from './mealTimingRules.js';
+import { buildIndianMealPlan, pickSingleMeal } from './indianMealTemplates.js';
+
+// Injury bodyPart -> megaGymDataset BodyPart categories to exclude from the fallback
+// workout builder. The ML recommender's avoid-list only does name/bodypart substring
+// matching, which won't catch e.g. bodyPart:'knee' against a dataset category like
+// 'Quadriceps' — so injury safety here works by excluding whole muscle-group
+// candidates up front rather than relying on that weaker substring penalty.
+const INJURY_BODY_PART_EXCLUSIONS = {
+  knee: ['Quadriceps', 'Hamstrings', 'Calves', 'Glutes'],
+  lower_back: ['Lower Back', 'Middle Back'],
+  shoulder: ['Shoulders'],
+  wrist: ['Forearms'],
+  elbow: ['Triceps', 'Biceps', 'Forearms'],
+  ankle: ['Calves'],
+  hip: ['Glutes', 'Quadriceps', 'Adductors', 'Abductors'],
+  neck: ['Neck', 'Traps']
+};
+
+function excludedBodyPartsFor(injuries = []) {
+  const excluded = new Set();
+  for (const inj of injuries) {
+    if (!inj?.isActive) continue;
+    const parts = INJURY_BODY_PART_EXCLUSIONS[inj.bodyPart] || [];
+    parts.forEach(p => excluded.add(p));
+  }
+  return excluded;
+}
+
+/** Builds a real, equipment-respecting, injury-aware workout from the ML recommender
+ * (real cosine similarity over 2,918 real exercises) instead of a hardcoded stub —
+ * used whenever Gemini is unavailable, which given the free-tier quota block is most
+ * of the time in practice, so this fallback IS the workout generator for most users. */
+async function buildFallbackWorkout(userContext) {
+  const excluded = excludedBodyPartsFor(userContext.injuries);
+  const ALL_GROUPS = [
+    ['Chest', 'Shoulders'],
+    ['Back', 'Lats'],
+    ['Quadriceps', 'Hamstrings'],
+    ['Biceps', 'Triceps']
+  ];
+  const groups = ALL_GROUPS
+    .map(pair => pair.filter(g => !excluded.has(g)))
+    .filter(pair => pair.length > 0);
+
+  const equipment = userContext.equipment?.length ? userContext.equipment : ['bodyweight_only'];
+  const level = userContext.fitnessLevel || 'intermediate';
+
+  const picks = await Promise.all(
+    groups.slice(0, 4).map(pair =>
+      recommendExercises({
+        goal: userContext.goal?.type || 'general_fitness',
+        target_muscles: pair,
+        equipment,
+        level,
+        avoid: [],
+        top_k: 2
+      })
+    )
+  );
+
+  const seen = new Set();
+  const exercises = [];
+  for (const group of picks) {
+    for (const ex of group) {
+      if (seen.has(ex.name)) continue;
+      seen.add(ex.name);
+      exercises.push({
+        name: ex.name,
+        muscleGroups: { primary: [ex.body_part?.toLowerCase() || 'general'] },
+        sets: level === 'beginner' ? 3 : 4,
+        reps: '8-12',
+        weight: ex.equipment === 'Body Only' ? 'bodyweight' : 'moderate',
+        restTime: 75,
+        equipment: ex.equipment,
+        notes: `Real cosine-match for ${ex.body_part}, using ${ex.equipment} - matches your available equipment.`,
+        instructions: ex.desc || ''
+      });
+      break; // one exercise per group per pass to keep it balanced
+    }
+  }
+
+  if (exercises.length === 0) {
+    // ML service itself unreachable — last-resort bodyweight-only stub, still better
+    // than nothing and never contradicts injuries since it targets no specific joint.
+    return {
+      title: 'Bodyweight Full Body Circuit',
+      type: 'strength',
+      splitFocus: 'Full Body',
+      durationTarget: userContext.workoutDuration || 30,
+      exercises: [
+        { name: 'Bodyweight Squat', muscleGroups: { primary: ['legs'] }, sets: 3, reps: '15', weight: 'bodyweight', restTime: 60, notes: 'ML service unreachable - generic bodyweight fallback.' },
+        { name: 'Push-Up', muscleGroups: { primary: ['chest'] }, sets: 3, reps: '12', weight: 'bodyweight', restTime: 60, notes: 'ML service unreachable - generic bodyweight fallback.' }
+      ],
+      explanation: 'ML recommender unreachable — generic bodyweight-only session generated as a last resort.',
+      estimatedCalories: 250
+    };
+  }
+
+  return {
+    title: `${userContext.fitnessLevel || 'Adaptive'} Full Body Session`,
+    type: 'strength',
+    splitFocus: groups.flat().slice(0, 4).join(', '),
+    durationTarget: userContext.workoutDuration || 45,
+    exercises,
+    explanation: `Built from your real equipment (${equipment.join(', ')}) and current injuries via the local exercise recommender — Gemini was unavailable so this used the trained model directly instead of a fixed template.`,
+    estimatedCalories: 350
+  };
+}
 
 export async function generateWorkoutWithAI(userContext) {
   try {
@@ -38,7 +146,8 @@ Respond in this exact JSON format:
       "weight": "20 kg",
       "restTime": 60,
       "equipment": "dumbbell",
-      "notes": "string"
+      "notes": "string",
+      "instructions": "string (concise real how-to-perform steps for this exercise)"
     }
   ],
   "explanation": "string (WHY this workout was chosen today)",
@@ -50,19 +159,8 @@ Respond in this exact JSON format:
     const cleanJSON = responseText.replace(/```json/g, '').replace(/```/g, '').trim();
     return JSON.parse(cleanJSON);
   } catch (error) {
-    console.warn(`[${AI_PROVIDER} AI Fallback] Using local rule engine for workout:`, error.message);
-    return {
-      title: 'Hypertrophy Upper Body & Core',
-      type: 'strength',
-      splitFocus: 'Chest, Shoulders & Triceps',
-      durationTarget: 45,
-      exercises: [
-        { name: 'Barbell Bench Press', muscleGroups: { primary: ['chest'] }, sets: 4, reps: '8-10', weight: '70 kg', restTime: 90, notes: 'Explosive drive.' },
-        { name: 'Machine Leg Press', muscleGroups: { primary: ['quads'] }, sets: 3, reps: '12', weight: '120 kg', restTime: 60, notes: 'Safe knee angle.' }
-      ],
-      explanation: 'Generated via rule engine: Adapted to bypass reported knee strain while targeting upper body volume.',
-      estimatedCalories: 380
-    };
+    console.warn(`[${AI_PROVIDER} AI Fallback] Using local ML recommender for workout:`, error.message);
+    return buildFallbackWorkout(userContext);
   }
 }
 
@@ -159,19 +257,27 @@ Respond in this exact JSON format:
     parsed.meals = (parsed.meals || []).map(annotateMealTiming);
     return parsed;
   } catch (error) {
-    console.warn(`[${AI_PROVIDER} AI Fallback] Using local rule engine for meal plan:`, error.message);
-    const fallbackMeals = [
-      { type: 'breakfast', name: 'Protein Oat Bowl with Blueberries', prepTime: 10, totalCalories: 480, foods: [{ name: 'Rolled Oats', quantity: '80g', calories: 300, protein: 11, carbs: 54, fat: 5, fiber: 8 }, { name: 'Whey Protein', quantity: '30g', calories: 120, protein: 25, carbs: 2, fat: 1, fiber: 0 }] },
-      { type: 'lunch', name: 'Grilled Chicken & Quinoa Bowl', prepTime: 20, totalCalories: 620, foods: [{ name: 'Chicken Breast', quantity: '180g', calories: 300, protein: 56, carbs: 0, fat: 6, fiber: 0 }, { name: 'Quinoa', quantity: '150g', calories: 190, protein: 7, carbs: 34, fat: 3, fiber: 4 }] },
-      { type: 'snack', name: 'Greek Yogurt & Almonds', prepTime: 5, totalCalories: 300, foods: [{ name: 'Greek Yogurt', quantity: '200g', calories: 150, protein: 20, carbs: 8, fat: 2, fiber: 0 }, { name: 'Almonds', quantity: '25g', calories: 150, protein: 5, carbs: 5, fat: 13, fiber: 3 }] },
-      { type: 'dinner', name: 'Lentil & Vegetable Soup', prepTime: 20, totalCalories: 450, foods: [{ name: 'Lentils', quantity: '200g', calories: 260, protein: 16, carbs: 36, fat: 4, fiber: 10 }, { name: 'Mixed Vegetables', quantity: '150g', calories: 90, protein: 3, carbs: 16, fat: 1, fiber: 5 }] }
-    ].map(annotateMealTiming);
+    console.warn(`[${AI_PROVIDER} AI Fallback] Using real Indian dish templates (diet-aware) for meal plan:`, error.message);
+    const rawMeals = buildIndianMealPlan(userContext.dietType);
+    const fallbackMeals = rawMeals.map(m => ({
+      ...m,
+      totalCalories: m.foods.reduce((sum, f) => sum + (f.calories || 0), 0)
+    })).map(annotateMealTiming);
+
+    const dailyTotals = fallbackMeals.reduce((acc, m) => ({
+      calories: acc.calories + m.totalCalories,
+      protein: acc.protein + m.foods.reduce((s, f) => s + (f.protein || 0), 0),
+      carbs: acc.carbs + m.foods.reduce((s, f) => s + (f.carbs || 0), 0),
+      fat: acc.fat + m.foods.reduce((s, f) => s + (f.fat || 0), 0),
+      fiber: acc.fiber + m.foods.reduce((s, f) => s + (f.fiber || 0), 0)
+    }), { calories: 0, protein: 0, carbs: 0, fat: 0, fiber: 0 });
+
     return {
       meals: fallbackMeals,
-      dailyTotals: { calories: 1850, protein: 143, carbs: 155, fat: 35, fiber: 30 },
+      dailyTotals,
       targetCalories: userContext.targetCalories || 2200,
       chronicConditionAdjustments: [],
-      explanation: 'Generated via rule engine: balanced macros with a deliberately lighter dinner for better sleep quality.'
+      explanation: `Generated from real Indian dishes matching your ${userContext.dietType || 'omnivore'} diet preference, with a deliberately lighter dinner for better sleep quality.`
     };
   }
 }
@@ -198,13 +304,12 @@ Respond with exactly one JSON object matching: ${MEAL_TEMPLATE_SCHEMA}
     const meal = JSON.parse(cleanJSON);
     return annotateMealTiming({ ...meal, type: mealType });
   } catch (error) {
-    console.warn(`[${AI_PROVIDER} AI Fallback] Using local rule engine for single meal:`, error.message);
+    console.warn(`[${AI_PROVIDER} AI Fallback] Using real Indian dish template (diet-aware) for single meal:`, error.message);
+    const dish = pickSingleMeal(mealType, userContext.dietType);
     return annotateMealTiming({
       type: mealType,
-      name: 'Balanced Rule-Engine Meal',
-      prepTime: 15,
-      totalCalories: mealType === 'dinner' ? 450 : 550,
-      foods: [{ name: 'Grilled Protein & Vegetables', quantity: '250g', calories: mealType === 'dinner' ? 450 : 550, protein: 35, carbs: 30, fat: mealType === 'dinner' ? 12 : 18, fiber: 6 }]
+      ...dish,
+      totalCalories: dish.foods.reduce((sum, f) => sum + (f.calories || 0), 0)
     });
   }
 }

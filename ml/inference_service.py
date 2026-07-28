@@ -184,11 +184,51 @@ def predict_injury(req: InjuryRequest):
     "warning_message": warning
   }
 
+# Maps the app's stored equipment vocabulary (backend/frontend EquipmentSelector
+# values, lowercase snake_case) to megaGymDataset's Equipment column values (Title
+# Case). "Body Only" exercises need no gear and are always allowed regardless of
+# what the user owns.
+_EQUIPMENT_SYNONYMS = {
+  'dumbbell': 'Dumbbell', 'dumbbells': 'Dumbbell',
+  'barbell': 'Barbell',
+  'cable': 'Cable', 'cable_machine': 'Cable',
+  'machine': 'Machine',
+  'kettlebell': 'Kettlebells', 'kettlebells': 'Kettlebells',
+  'resistance_band': 'Bands', 'bands': 'Bands', 'resistance_bands': 'Bands',
+  'medicine_ball': 'Medicine Ball',
+  'exercise_ball': 'Exercise Ball', 'stability_ball': 'Exercise Ball',
+  'ez_curl_bar': 'E-Z Curl Bar',
+  'foam_roll': 'Foam Roll', 'foam_roller': 'Foam Roll',
+  'bodyweight_only': 'Body Only', 'bodyweight': 'Body Only',
+  'pull_up_bar': 'Other', 'bench': 'Other', 'rack': 'Other'
+}
+_ALWAYS_ALLOWED_EQUIPMENT = {'body only', 'other'}
+
+
+def _normalize_equipment_set(user_equipment):
+  normalized = set()
+  for item in user_equipment or []:
+    key = str(item).strip().lower().replace(' ', '_')
+    normalized.add(_EQUIPMENT_SYNONYMS.get(key, str(item).strip().lower()))
+  return normalized
+
+
+def _equipment_available(exercise_equipment, allowed_equipment_lower):
+  ex_eq = str(exercise_equipment or '').strip().lower()
+  if not ex_eq or ex_eq in _ALWAYS_ALLOWED_EQUIPMENT:
+    return True
+  return ex_eq in {a.lower() for a in allowed_equipment_lower}
+
+
 def _keyword_fallback_recommend(req: RecommendRequest, metadata):
   # Used only when the SentenceTransformer encoder or embeddings failed to load —
   # same behavior as the previous implementation, kept as a resilience fallback.
+  allowed_equipment = _normalize_equipment_set(req.equipment)
   matched = []
   for ex in metadata:
+    if not _equipment_available(ex.get('equipment', ''), allowed_equipment):
+      continue
+
     score = 0.5
     ex_body = ex.get('body_part', '').lower()
     ex_name = ex.get('name', '').lower()
@@ -204,6 +244,7 @@ def _keyword_fallback_recommend(req: RecommendRequest, metadata):
       "body_part": ex.get('body_part', 'General'),
       "equipment": ex.get('equipment', 'Dumbbell'),
       "level": ex.get('level', 'Beginner'),
+      "desc": ex.get('desc', ''),
       "similarity_score": round(min(0.99, max(0.20, score)), 2),
       "reason": f"Targets {ex.get('body_part')} matching available equipment"
     })
@@ -233,8 +274,16 @@ def recommend_exercises(req: RecommendRequest):
   embeddings = models["exercise_embeddings"]
   sims = np.dot(embeddings, query_norm)
 
+  allowed_equipment = _normalize_equipment_set(req.equipment)
+
   results = []
   for idx, ex in enumerate(metadata):
+    ex_equipment = ex.get('equipment', '')
+    # Hard filter, not just a similarity nudge — an exercise the user has no gear for
+    # should never surface, regardless of how well it scores semantically.
+    if not _equipment_available(ex_equipment, allowed_equipment):
+      continue
+
     score = float(sims[idx])
     ex_body = ex.get('body_part', '').lower()
     ex_name = ex.get('name', '').lower()
@@ -247,6 +296,7 @@ def recommend_exercises(req: RecommendRequest):
       "body_part": ex.get('body_part', 'General'),
       "equipment": ex.get('equipment', 'Dumbbell'),
       "level": ex.get('level', 'Beginner'),
+      "desc": ex.get('desc', ''),
       "similarity_score": round(max(0.0, score), 4),
       "reason": f"Cosine-similar to '{req.goal}/{', '.join(req.target_muscles)}' query ({ex.get('body_part')}, {ex.get('equipment')})"
     })

@@ -22,7 +22,9 @@ import {
   Ruler,
   Weight,
   Percent,
-  ShieldAlert
+  ShieldAlert,
+  Package,
+  Settings2
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -125,7 +127,7 @@ function AttributeRadar({ attributes }) {
 export function GamifiedProfile() {
   const dispatch = useDispatch();
   const { user } = useSelector(state => state.auth);
-  const { level, xp, xpToNextLevel, rankTitle, archetype, attributes, achievements, prHallOfFame } = useSelector(state => state.gamification);
+  const { level, xp, xpToNextLevel, rankTitle, archetype, attributes, achievements, prHallOfFame, skillTreePerks } = useSelector(state => state.gamification);
   const { mobileMode } = useTheme();
 
   const [name, setName] = useState(user?.name || '');
@@ -331,16 +333,42 @@ export function GamifiedProfile() {
         )}
       </div>
 
+      {/* Gear Inventory Summary + Change Gear tiles */}
+      <div className={`grid grid-cols-1 ${mobileMode ? 'grid-cols-1' : 'sm:grid-cols-3'} gap-4`}>
+        <div className={`${mobileMode ? 'col-span-1' : 'sm:col-span-2'} p-4 sm:p-6 rounded-3xl bg-[var(--bg-secondary)] border border-[var(--border-color)] shadow-2xl space-y-3`}>
+          <h3 className="text-xs font-bold text-[var(--text-secondary)] uppercase tracking-wider flex items-center gap-2">
+            <Package className="w-4 h-4 text-[var(--accent-primary)]" /> GEAR INVENTORY
+          </h3>
+          {equipment.length === 0 ? (
+            <p className="text-xs text-[var(--text-secondary)]">No equipment set yet — add what you have access to so AI workouts only use gear you actually own.</p>
+          ) : (
+            <div className="flex flex-wrap gap-2">
+              {equipment.map((item) => (
+                <span key={item} className="px-3 py-1.5 rounded-xl bg-[var(--bg-tertiary)] border border-[var(--border-color)] text-[var(--text-primary)] text-xs font-semibold capitalize">
+                  {item.replace(/_/g, ' ')}
+                </span>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <button
+          onClick={() => setActiveTab('equipment')}
+          className="p-4 sm:p-6 rounded-3xl bg-[var(--accent-glow)] hover:bg-[var(--accent-primary)] border border-[var(--accent-primary)]/40 shadow-2xl flex flex-col items-center justify-center gap-2 text-center transition-all group"
+        >
+          <Settings2 className="w-6 h-6 text-[var(--accent-primary)] group-hover:text-slate-950" />
+          <span className="text-xs font-extrabold text-[var(--text-primary)] group-hover:text-slate-950">Change Gear Inventory</span>
+        </button>
+      </div>
+
       {showEditModal && <ProfileEditModal user={user} onClose={() => setShowEditModal(false)} />}
 
       {/* Navigation Sub-Tabs Strip (Horizontal Scroll with No Wrap) */}
       <div className="flex border-b border-[var(--border-color)] gap-3 text-xs font-extrabold overflow-x-auto scrollbar-none pb-1.5 whitespace-nowrap">
         {[
           { id: 'overview', label: 'Attribute Stats & Radar', tip: '📊 5-Axis Fitness Radar Active! Inspect STR, END, MOB, CON, REC stats.' },
-          { id: 'achievements', label: `Achievements (${achievements.filter(a => a.unlocked).length})`, tip: '🏆 Achievements Active! You have unlocked 4 legendary RPG badges including Iron Vanguard & PR Shatterer!' },
-          { id: 'halloffame', label: 'PR Hall of Fame', tip: '🏋️ PR Hall of Fame Active! Logged 5 personal strength records this month!' },
-          { id: 'skilltree', label: 'Skill Perks', tip: '✨ Skill Perks Active! Tier 3 Warrior Perks unlocked (+15% XP multiplier)!' },
-          { id: 'equipment', label: 'Gear Inventory', tip: '🛡️ Gear Inventory Active! 4 home & gym equipment items synced.' },
+          { id: 'achievements', label: 'Achievements & Records', tip: '🏆 Achievements, PR Hall of Fame, and Skill Perks — all your earned progress in one place.' },
+          { id: 'equipment', label: 'Gear Inventory', tip: '🛡️ Gear Inventory Active! Manage your equipment here.' },
           { id: 'injuries', label: `Injuries (${(user?.injuries || []).filter(i => i.isActive !== false).length})`, tip: '🩹 Injury Manager Active! Manage active injuries and exercise restrictions here.' }
         ].map(tab => (
           <button
@@ -400,123 +428,115 @@ export function GamifiedProfile() {
         </div>
       )}
 
-      {/* TAB 2: ACHIEVEMENTS HALL */}
+      {/* TAB 2: ACHIEVEMENTS, PR HALL OF FAME & SKILL PERKS MERGED */}
       {activeTab === 'achievements' && (
-        <div className="p-4 sm:p-6 rounded-3xl bg-[var(--bg-secondary)] border border-[var(--border-color)] shadow-xl space-y-4 animate-in fade-in duration-300">
-          <div className="flex items-center justify-between">
-            <h3 className="text-xs font-bold text-[var(--text-secondary)] uppercase tracking-wider flex items-center gap-2">
-              <Trophy className="w-4 h-4 text-amber-400" /> UNLOCKED RPG ACHIEVEMENTS & TROPHIES
-            </h3>
-            <span className="text-xs font-extrabold text-[var(--accent-primary)] font-mono">
-              {achievements.filter(a => a.unlocked).length} / {achievements.length} UNLOCKED
-            </span>
-          </div>
+        <div className="space-y-6 animate-in fade-in duration-300">
+          <div className="p-4 sm:p-6 rounded-3xl bg-[var(--bg-secondary)] border border-[var(--border-color)] shadow-xl space-y-4">
+            <div className="flex items-center justify-between">
+              <h3 className="text-xs font-bold text-[var(--text-secondary)] uppercase tracking-wider flex items-center gap-2">
+                <Trophy className="w-4 h-4 text-amber-400" /> UNLOCKED RPG ACHIEVEMENTS & TROPHIES
+              </h3>
+              <span className="text-xs font-extrabold text-[var(--accent-primary)] font-mono">
+                {achievements.filter(a => a.unlocked).length} / {achievements.length} UNLOCKED
+              </span>
+            </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            {achievements.map((ach) => (
-              <div
-                key={ach.id}
-                className={`p-4 rounded-2xl border space-y-2 relative overflow-hidden transition-all ${
-                  ach.unlocked
-                    ? 'bg-[var(--bg-tertiary)] border-[var(--border-color)] hover:border-[var(--accent-primary)]/50'
-                    : 'bg-[var(--bg-tertiary)]/40 border-[var(--border-color)] opacity-60'
-                }`}
-                data-ai-tip={`Achievement: ${ach.title} - ${ach.desc}`}
-              >
-                <div className="flex items-center justify-between">
-                  <div className={`w-9 h-9 rounded-xl flex items-center justify-center font-bold ${
-                    ach.unlocked ? 'bg-amber-500/10 text-amber-400' : 'bg-slate-800 text-slate-500'
-                  }`}>
-                    <Trophy className="w-5 h-5" />
-                  </div>
-                  <span className={`text-[9px] font-extrabold uppercase px-2 py-0.5 rounded ${
-                    ach.rarity === 'legendary' ? 'bg-amber-500/20 text-amber-400 border border-amber-500/40' :
-                    ach.rarity === 'epic' ? 'bg-purple-500/20 text-purple-400 border border-purple-500/40' :
-                    'bg-blue-500/20 text-blue-400 border border-blue-500/40'
-                  }`}>
-                    {ach.rarity}
-                  </span>
-                </div>
-
-                <div>
-                  <h4 className="font-extrabold text-sm text-[var(--text-primary)]">{ach.title}</h4>
-                  <p className="text-xs text-[var(--text-secondary)] mt-0.5">{ach.desc}</p>
-                </div>
-
-                <div className="pt-1 flex items-center gap-1.5 text-[10px] font-semibold text-[var(--text-tertiary)]">
-                  {ach.unlocked ? (
-                    <>
-                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
-                      <span className="text-emerald-400 font-bold">Unlocked{ach.date ? ` ${ach.date}` : ''}</span>
-                    </>
-                  ) : (
-                    <>
-                      <Lock className="w-3.5 h-3.5 text-slate-500" />
-                      <span>Locked Challenge</span>
-                    </>
-                  )}
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* TAB 3: PR HALL OF FAME */}
-      {activeTab === 'halloffame' && (
-        <div className="p-4 sm:p-6 rounded-3xl bg-[var(--bg-secondary)] border border-[var(--border-color)] shadow-xl space-y-4 animate-in fade-in duration-300">
-          <h3 className="text-xs font-bold text-[var(--text-secondary)] uppercase tracking-wider flex items-center gap-2">
-            <Flame className="w-4 h-4 text-amber-400" /> PERSONAL RECORD HALL OF FAME
-          </h3>
-
-          {prHallOfFame.length === 0 ? (
-            <p className="text-xs text-[var(--text-tertiary)] italic">No personal records logged yet. Complete workouts to start building your Hall of Fame.</p>
-          ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              {prHallOfFame.map((pr, idx) => (
-                <div key={idx} className="p-4 rounded-2xl bg-[var(--bg-tertiary)] border border-[var(--border-color)] flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-xl bg-amber-500/10 text-amber-400 flex items-center justify-center font-bold">
-                      <Dumbbell className="w-5 h-5" />
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              {achievements.map((ach) => (
+                <div
+                  key={ach.id}
+                  className={`p-4 rounded-2xl border space-y-2 relative overflow-hidden transition-all ${
+                    ach.unlocked
+                      ? 'bg-[var(--bg-tertiary)] border-[var(--border-color)] hover:border-[var(--accent-primary)]/50'
+                      : 'bg-[var(--bg-tertiary)]/40 border-[var(--border-color)] opacity-60'
+                  }`}
+                  data-ai-tip={`Achievement: ${ach.title} - ${ach.desc}`}
+                >
+                  <div className="flex items-center justify-between">
+                    <div className={`w-9 h-9 rounded-xl flex items-center justify-center font-bold ${
+                      ach.unlocked ? 'bg-amber-500/10 text-amber-400' : 'bg-slate-800 text-slate-500'
+                    }`}>
+                      <Trophy className="w-5 h-5" />
                     </div>
-                    <div>
-                      <h4 className="font-extrabold text-sm text-[var(--text-primary)]">{pr.exercise}</h4>
-                      <p className="text-xs text-[var(--text-secondary)] font-mono">{pr.record} × {pr.reps}</p>
-                    </div>
+                    <span className={`text-[9px] font-extrabold uppercase px-2 py-0.5 rounded ${
+                      ach.rarity === 'legendary' ? 'bg-amber-500/20 text-amber-400 border border-amber-500/40' :
+                      ach.rarity === 'epic' ? 'bg-purple-500/20 text-purple-400 border border-purple-500/40' :
+                      'bg-blue-500/20 text-blue-400 border border-blue-500/40'
+                    }`}>
+                      {ach.rarity}
+                    </span>
                   </div>
-                  <div className="text-right">
-                    {pr.diff && <span className="text-[10px] font-bold text-amber-400 block uppercase">{pr.diff}</span>}
-                    <span className="text-[10px] text-[var(--text-tertiary)]">{pr.date}</span>
+
+                  <div>
+                    <h4 className="font-extrabold text-sm text-[var(--text-primary)]">{ach.title}</h4>
+                    <p className="text-xs text-[var(--text-secondary)] mt-0.5">{ach.desc}</p>
+                  </div>
+
+                  <div className="pt-1 flex items-center gap-1.5 text-[10px] font-semibold text-[var(--text-tertiary)]">
+                    {ach.unlocked ? (
+                      <>
+                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                        <span className="text-emerald-400 font-bold">Unlocked{ach.date ? ` ${ach.date}` : ''}</span>
+                      </>
+                    ) : (
+                      <>
+                        <Lock className="w-3.5 h-3.5 text-slate-500" />
+                        <span>Locked Challenge</span>
+                      </>
+                    )}
                   </div>
                 </div>
               ))}
             </div>
-          )}
-        </div>
-      )}
+          </div>
 
-      {/* TAB 4: SKILL PERKS */}
-      {activeTab === 'skilltree' && (
-        <div className="p-4 sm:p-6 rounded-3xl bg-[var(--bg-secondary)] border border-[var(--border-color)] shadow-xl space-y-4 animate-in fade-in duration-300">
-          <h3 className="text-xs font-bold text-[var(--text-secondary)] uppercase tracking-wider flex items-center gap-2">
-            <Zap className="w-4 h-4 text-[var(--accent-primary)]" /> RPG SKILL TREE & PERKS
-          </h3>
+          <div className="p-4 sm:p-6 rounded-3xl bg-[var(--bg-secondary)] border border-[var(--border-color)] shadow-xl space-y-4">
+            <h3 className="text-xs font-bold text-[var(--text-secondary)] uppercase tracking-wider flex items-center gap-2">
+              <Flame className="w-4 h-4 text-amber-400" /> PERSONAL RECORD HALL OF FAME
+            </h3>
 
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            {[
-              { title: 'Streak Multiplier', tier: 'Tier 1', desc: '+15% bonus XP for all completed workouts during active streak.', unlocked: true },
-              { title: 'Joint Preservation', tier: 'Tier 2', desc: 'AI auto-swap algorithm prioritizes low-impact movements when fatigue > 60%.', unlocked: true },
-              { title: 'Overload Overdrive', tier: 'Tier 3', desc: 'Unlocks +2.5kg micro-loading recommendations on compound lifts.', unlocked: false }
-            ].map((perk, i) => (
-              <div key={i} className={`p-4 rounded-2xl border space-y-2 ${perk.unlocked ? 'bg-[var(--bg-tertiary)] border-[var(--border-color)]' : 'bg-[var(--bg-tertiary)]/40 border-[var(--border-color)] opacity-60'}`}>
-                <div className="flex items-center justify-between">
-                  <span className="text-[10px] font-mono font-bold text-[var(--accent-primary)] uppercase">{perk.tier}</span>
-                  {perk.unlocked ? <Unlock className="w-4 h-4 text-emerald-400" /> : <Lock className="w-4 h-4 text-slate-500" />}
-                </div>
-                <h4 className="font-extrabold text-sm text-[var(--text-primary)]">{perk.title}</h4>
-                <p className="text-xs text-[var(--text-secondary)]">{perk.desc}</p>
+            {prHallOfFame.length === 0 ? (
+              <p className="text-xs text-[var(--text-tertiary)] italic">No personal records logged yet. Complete workouts to start building your Hall of Fame.</p>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {prHallOfFame.map((pr, idx) => (
+                  <div key={idx} className="p-4 rounded-2xl bg-[var(--bg-tertiary)] border border-[var(--border-color)] flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-xl bg-amber-500/10 text-amber-400 flex items-center justify-center font-bold">
+                        <Dumbbell className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <h4 className="font-extrabold text-sm text-[var(--text-primary)]">{pr.exercise}</h4>
+                        <p className="text-xs text-[var(--text-secondary)] font-mono">{pr.record} × {pr.reps}</p>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      {pr.diff && <span className="text-[10px] font-bold text-amber-400 block uppercase">{pr.diff}</span>}
+                      <span className="text-[10px] text-[var(--text-tertiary)]">{pr.date}</span>
+                    </div>
+                  </div>
+                ))}
               </div>
-            ))}
+            )}
+          </div>
+
+          <div className="p-4 sm:p-6 rounded-3xl bg-[var(--bg-secondary)] border border-[var(--border-color)] shadow-xl space-y-4">
+            <h3 className="text-xs font-bold text-[var(--text-secondary)] uppercase tracking-wider flex items-center gap-2">
+              <Zap className="w-4 h-4 text-[var(--accent-primary)]" /> RPG SKILL TREE & PERKS
+            </h3>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              {skillTreePerks.map((perk) => (
+                <div key={perk.id} className={`p-4 rounded-2xl border space-y-2 ${perk.unlocked ? 'bg-[var(--bg-tertiary)] border-[var(--border-color)]' : 'bg-[var(--bg-tertiary)]/40 border-[var(--border-color)] opacity-60'}`}>
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] font-mono font-bold text-[var(--accent-primary)] uppercase">Requires Lvl {perk.levelReq}</span>
+                    {perk.unlocked ? <Unlock className="w-4 h-4 text-emerald-400" /> : <Lock className="w-4 h-4 text-slate-500" />}
+                  </div>
+                  <h4 className="font-extrabold text-sm text-[var(--text-primary)]">{perk.name}</h4>
+                  <p className="text-xs text-[var(--text-secondary)]">{perk.desc}</p>
+                </div>
+              ))}
+            </div>
           </div>
         </div>
       )}

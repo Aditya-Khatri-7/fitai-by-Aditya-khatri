@@ -2,6 +2,7 @@ import React from 'react';
 import { useSelector } from 'react-redux';
 import { useLocation } from 'react-router-dom';
 import { Sidebar } from './Sidebar';
+import { BottomNav } from './BottomNav';
 import { TopNav } from './TopNav';
 import { CommandPalette } from './CommandPalette';
 import { WearableSync } from '../health/WearableSync';
@@ -16,9 +17,11 @@ export function DashboardLayout({ children }) {
 
   return (
     <div className={`bg-[var(--bg-primary)] text-[var(--text-primary)] flex flex-col font-sans transition-colors relative ${
-      mobileMode ? 'h-[832px] max-h-[832px] overflow-hidden w-full' : 'min-h-screen'
+      mobileMode ? 'h-full w-full overflow-hidden' : 'min-h-screen'
     }`}>
-      <Sidebar />
+      {/* Real mobile-native bottom tab bar replaces the left sidebar entirely on
+          narrow layouts, instead of the old hamburger + slide-over drawer. */}
+      {!isDrawerLayout && <Sidebar />}
 
       <div
         className={`flex-1 flex flex-col transition-all duration-300 min-w-0 ${
@@ -34,14 +37,16 @@ export function DashboardLayout({ children }) {
           key={location.pathname}
           className={`flex-1 w-full mx-auto space-y-6 animate-in fade-in zoom-in-95 slide-in-from-right-4 duration-300 ${
             mobileMode
-              ? 'p-3.5 h-[calc(832px-60px)] overflow-y-auto scrollbar-none'
+              ? 'p-3.5 pb-20 h-[calc(100%-56px)] overflow-y-auto scrollbar-none'
               : isNarrowViewport
-              ? 'p-3.5 overflow-y-visible'
+              ? 'p-3.5 pb-24 overflow-y-visible'
               : 'p-6 md:p-8 max-w-7xl overflow-y-visible'
           }`}
         >
           {children}
         </main>
+
+        {isDrawerLayout && <BottomNav />}
       </div>
 
       <CommandPalette />

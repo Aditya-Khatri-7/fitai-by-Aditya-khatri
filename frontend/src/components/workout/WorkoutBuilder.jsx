@@ -152,6 +152,22 @@ export function WorkoutBuilder({ onStartSession }) {
         </div>
       </div>
 
+      {/* Today's Plan At A Glance */}
+      <div className="grid grid-cols-3 gap-3">
+        <div className="p-3.5 rounded-2xl bg-[var(--bg-secondary)] border border-[var(--border-color)] text-center">
+          <span className="text-[10px] text-[var(--text-tertiary)] uppercase font-bold block">Duration</span>
+          <span className="text-sm font-extrabold text-[var(--text-primary)]">{todayWorkout.durationTarget} min</span>
+        </div>
+        <div className="p-3.5 rounded-2xl bg-[var(--bg-secondary)] border border-[var(--border-color)] text-center">
+          <span className="text-[10px] text-[var(--text-tertiary)] uppercase font-bold block">Exercises</span>
+          <span className="text-sm font-extrabold text-[var(--text-primary)]">{todayWorkout.exercises.length}</span>
+        </div>
+        <div className="p-3.5 rounded-2xl bg-[var(--bg-secondary)] border border-[var(--border-color)] text-center">
+          <span className="text-[10px] text-[var(--text-tertiary)] uppercase font-bold block">Status</span>
+          <span className="text-sm font-extrabold text-[var(--text-primary)] capitalize">{todayWorkout.status || 'planned'}</span>
+        </div>
+      </div>
+
       {/* Muscle Filter Active Alert */}
       {selectedMuscleFilter && (
         <div className="p-3.5 rounded-2xl bg-[var(--accent-glow)] border border-[var(--accent-primary)]/40 flex items-center justify-between text-xs animate-in fade-in duration-200">
@@ -177,10 +193,12 @@ export function WorkoutBuilder({ onStartSession }) {
             <span className="text-[var(--accent-primary)]">Adaptive Safety Active</span>
           </div>
 
-          <div className="space-y-3">
+          <div className="flex gap-3.5 overflow-x-auto snap-x snap-mandatory scrollbar-none pb-2 -mx-1 px-1">
             {filteredExercises.length > 0 ? (
               filteredExercises.map((ex, idx) => (
-                <ExerciseCard key={idx} exercise={ex} index={idx} />
+                <div key={idx} className="shrink-0 w-[86%] sm:w-[420px] snap-center">
+                  <ExerciseCard exercise={ex} index={idx} />
+                </div>
               ))
             ) : (
               <div className="p-8 rounded-3xl bg-[var(--bg-secondary)] border border-[var(--border-color)] text-center space-y-3">

@@ -4,7 +4,7 @@ const ThemeContext = createContext();
 
 export function ThemeProvider({ children }) {
   const [theme, setThemeState] = useState(() => {
-    return localStorage.getItem('fitai_theme') || 'midnight_carbon';
+    return localStorage.getItem('fitai_theme') || 'burnt_circuit';
   });
 
   const [mobileMode, setMobileModeState] = useState(() => {
@@ -56,6 +56,12 @@ export function ThemeProvider({ children }) {
     localStorage.setItem('fitai_theme', name);
     document.documentElement.setAttribute('data-theme', name);
   };
+
+  const LIGHT_THEME_IDS = new Set(['clinical_white', 'arctic_white', 'sand_dune', 'blossom', 'sage_light', 'golden_hour', 'lavender_dream']);
+  const isLightTheme = LIGHT_THEME_IDS.has(theme);
+  // Quick toggle within the same gold accent family (burnt_circuit <-> golden_hour)
+  // rather than a generic light/dark switch, so the app keeps its brand color.
+  const toggleLightDark = () => setTheme(isLightTheme ? 'burnt_circuit' : 'golden_hour');
 
   const setMobileMode = (val) => {
     const value = typeof val === 'function' ? val(mobileMode) : val;
@@ -116,6 +122,8 @@ export function ThemeProvider({ children }) {
         setMobileMode,
         toggleMobileMode,
         isNarrowViewport,
+        isLightTheme,
+        toggleLightDark,
         isBotEnabled,
         toggleBotEnabled,
         mouseTrackingEnabled,

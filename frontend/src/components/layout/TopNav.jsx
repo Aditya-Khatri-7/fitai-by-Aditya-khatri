@@ -1,35 +1,24 @@
 import React, { useState } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
-import { setCommandPaletteOpen, setWearableModalOpen, toggleSidebar } from '../../redux/slices/uiSlice';
+import { setCommandPaletteOpen, setWearableModalOpen } from '../../redux/slices/uiSlice';
 import { logout } from '../../redux/slices/authSlice';
 import { useTheme } from '../../context/ThemeContext';
 import { StreakFlame } from '../common/StreakFlame';
-import { Search, Watch, Command, LogOut, User, Palette, Menu } from 'lucide-react';
+import { Search, Watch, Command, LogOut, User, Palette } from 'lucide-react';
 
 export function TopNav() {
   const navigate = useNavigate();
   const dispatch = useDispatch();
   const { user } = useSelector(state => state.auth);
-  const { setIsThemeSwitcherOpen, mobileMode, isNarrowViewport } = useTheme();
+  const { setIsThemeSwitcherOpen, mobileMode } = useTheme();
   const [showProfileMenu, setShowProfileMenu] = useState(false);
-  const isDrawerLayout = mobileMode || isNarrowViewport;
 
   return (
     <header className="sticky top-0 z-30 h-14 sm:h-16 bg-[var(--bg-secondary)]/95 backdrop-blur-xl border-b border-[var(--border-color)] px-3 sm:px-6 flex items-center justify-between gap-2 transition-colors">
 
-      {/* Left Area: Mobile Menu Trigger & Search */}
+      {/* Left Area: Search */}
       <div className="flex items-center gap-2 min-w-0">
-        {isDrawerLayout && (
-          <button
-            onClick={() => dispatch(toggleSidebar())}
-            className="p-2 rounded-xl bg-[var(--bg-tertiary)] border border-[var(--border-color)] text-[var(--text-primary)] hover:bg-[var(--accent-glow)] hover:text-[var(--accent-primary)] transition-all shrink-0"
-            title="Toggle Navigation Menu"
-          >
-            <Menu className="w-4 h-4" />
-          </button>
-        )}
-
         {/* Search / Command Palette Trigger */}
         <button
           onClick={() => dispatch(setCommandPaletteOpen(true))}

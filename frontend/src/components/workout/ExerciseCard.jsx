@@ -4,15 +4,28 @@ import { setAISwapModalOpen } from '../../redux/slices/uiSlice';
 import { detectExerciseConflicts } from '../../utils/conflictDetector';
 import { ConflictWarning } from './ConflictWarning';
 import { Exercise3DDemo } from './Exercise3DDemo';
-import { Shuffle, Play } from 'lucide-react';
+import { Shuffle, Play, ListOrdered, ChevronDown } from 'lucide-react';
+
+// Splits the real exercise description (from megaGymDataset) into readable steps by
+// sentence — the source data is prose, not a numbered list, so this is a formatting
+// pass over real content rather than fabricated instructions.
+function toSteps(desc) {
+  if (!desc) return [];
+  return desc
+    .split(/(?<=[.!?])\s+/)
+    .map(s => s.trim())
+    .filter(Boolean);
+}
 
 export function ExerciseCard({ exercise, index }) {
   const dispatch = useDispatch();
   const { user } = useSelector(state => state.auth);
   const { todayMetrics } = useSelector(state => state.health);
   const [show3D, setShow3D] = useState(false);
+  const [showSteps, setShowSteps] = useState(false);
 
   const conflictCheck = detectExerciseConflicts(exercise, user, todayMetrics);
+  const steps = toSteps(exercise.instructions);
 
   return (
     <div className="p-4 rounded-3xl bg-[var(--bg-secondary)] border border-[var(--border-color)] shadow-xl space-y-3 relative overflow-hidden group hover:border-[var(--accent-primary)] transition-all">
@@ -62,6 +75,32 @@ export function ExerciseCard({ exercise, index }) {
         <p className="text-xs text-[var(--text-secondary)] bg-[var(--bg-tertiary)] p-2.5 rounded-xl border border-[var(--border-color)] font-medium leading-relaxed">
           <strong className="text-[var(--text-primary)] font-semibold">Execution Tip: </strong>{exercise.notes}
         </p>
+      )}
+
+      {steps.length > 0 && (
+        <div className="border-t border-[var(--border-color)] pt-3">
+          <button
+            onClick={() => setShowSteps(prev => !prev)}
+            className="w-full flex items-center justify-between text-xs font-bold text-[var(--text-secondary)] hover:text-[var(--accent-primary)] transition-colors"
+          >
+            <span className="flex items-center gap-1.5">
+              <ListOrdered className="w-3.5 h-3.5" /> How To Perform ({steps.length} steps)
+            </span>
+            <ChevronDown className={`w-4 h-4 transition-transform ${showSteps ? 'rotate-180' : ''}`} />
+          </button>
+          {showSteps && (
+            <ol className="mt-2.5 space-y-2 text-xs animate-in fade-in duration-200">
+              {steps.map((step, i) => (
+                <li key={i} className="flex gap-2.5">
+                  <span className="w-5 h-5 rounded-full bg-[var(--accent-glow)] text-[var(--accent-primary)] font-extrabold flex items-center justify-center text-[10px] shrink-0 mt-0.5">
+                    {i + 1}
+                  </span>
+                  <span className="text-[var(--text-secondary)] leading-relaxed">{step}</span>
+                </li>
+              ))}
+            </ol>
+          )}
+        </div>
       )}
 
       <Exercise3DDemo exercise={exercise} isOpen={show3D} onClose={() => setShow3D(false)} />

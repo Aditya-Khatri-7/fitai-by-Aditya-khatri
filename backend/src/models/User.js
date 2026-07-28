@@ -47,7 +47,11 @@ const UserSchema = new mongoose.Schema({
     budget: { type: String, default: 'medium' },
     cookingSkill: { type: String, default: 'intermediate' },
     country: String,
-    religion: String
+    religion: String,
+    cheatDays: [{
+      dayOfWeek: { type: Number, min: 0, max: 6 }, // 0 = Sunday
+      type: { type: String, enum: ['full', 'workout_only', 'meal_only'], default: 'full' }
+    }]
   },
 
   currentGoal: {

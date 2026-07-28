@@ -4,7 +4,7 @@ import { Provider, useDispatch } from 'react-redux';
 import { Toaster } from 'react-hot-toast';
 import { store } from './redux/store';
 import { fetchMe } from './redux/slices/authSlice';
-import { ThemeProvider } from './context/ThemeContext';
+import { ThemeProvider, useTheme } from './context/ThemeContext';
 import { SpatialCoachProvider } from './context/SpatialCoachContext';
 import { FitCompanion } from './components/companion/FitCompanion';
 import { ProtectedRoute } from './components/routing/ProtectedRoute';
@@ -62,6 +62,21 @@ function AppRoutes() {
   );
 }
 
+// Wraps the companion widget and routed pages in ONE shared frame boundary. Without
+// this, FitCompanion (fixed-positioned) is a sibling of the routes tree rather than a
+// descendant of DashboardLayout's .mobile-mode frame div, so in the mobile preview
+// its `fixed` overlays anchor to the real browser viewport instead of the simulated
+// 390px frame and visibly bleed off its right edge.
+function AppShell() {
+  const { mobileMode } = useTheme();
+  return (
+    <div className={mobileMode ? 'mobile-mode' : ''}>
+      <FitCompanion />
+      <AppRoutes />
+    </div>
+  );
+}
+
 export default function App() {
   return (
     <Provider store={store}>
@@ -83,8 +98,7 @@ export default function App() {
                 }
               }}
             />
-            <FitCompanion />
-            <AppRoutes />
+            <AppShell />
           </SpatialCoachProvider>
         </BrowserRouter>
       </ThemeProvider>

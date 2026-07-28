@@ -34,9 +34,11 @@ export function ProactiveAIHUD({ isOpen, onClose }) {
       adviceText = `Fuel Management Active! Your daily macro target is structured to optimize muscle hypertrophy while keeping recovery high. Remember to drink 3.5 liters of water today!`;
     } else if (path.includes('health')) {
       const hr = todayMetrics?.heartRate?.resting;
-      adviceText = `Biometric Health Diagnostics Active! Recovery score is ${recovery.score}%.${hr ? ` Resting heart rate is ${hr} bpm.` : ''} ${recovery.score >= 75 ? 'Everything is optimal for heavy training!' : 'Consider a lighter session today.'}`;
+      const recoveryText = recovery.isUncalibrated ? 'not yet calibrated — sync a wearable to enable it' : `${recovery.score}%`;
+      adviceText = `Biometric Health Diagnostics Active! Recovery score is ${recoveryText}.${hr ? ` Resting heart rate is ${hr} bpm.` : ''} ${!recovery.isUncalibrated && recovery.score >= 75 ? 'Everything is optimal for heavy training!' : ''}`;
     } else {
-      adviceText = `Welcome back! You are on a ${streak}-Day Training Streak! Today's AI recovery score is ${recovery.score}%. Start your daily workout session to claim +250 XP!`;
+      const recoveryText = recovery.isUncalibrated ? 'not yet calibrated' : `${recovery.score}%`;
+      adviceText = `Welcome back! You are on a ${streak}-Day Training Streak! Today's AI recovery score is ${recoveryText}. Start your daily workout session to claim +250 XP!`;
     }
 
     setCurrentAdvice(adviceText);

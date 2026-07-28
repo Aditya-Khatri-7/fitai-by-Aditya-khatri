@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { DashboardLayout } from '../components/layout/DashboardLayout';
+import { StreakStatusCard } from '../components/workout/StreakStatusCard';
 import { WorkoutBuilder } from '../components/workout/WorkoutBuilder';
 import { AISwapModal } from '../components/workout/AISwapModal';
 import { WorkoutHistory } from '../components/workout/WorkoutHistory';
@@ -13,6 +14,7 @@ export function WorkoutsPage() {
 
   return (
     <DashboardLayout>
+      <StreakStatusCard />
       <WorkoutBuilder onStartSession={() => setIsLiveArenaOpen(true)} />
       <WorkoutSimulator />
       <ProgressiveOverload />

@@ -69,6 +69,7 @@ export async function updateProfile(req, res) {
       for (const field of EDITABLE_PREFERENCE_FIELDS) {
         if (preferences[field] !== undefined) user.preferences[field] = preferences[field];
       }
+      if (Array.isArray(preferences.cheatDays)) user.preferences.cheatDays = preferences.cheatDays;
     }
 
     if (currentGoal && typeof currentGoal === 'object') {

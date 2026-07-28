@@ -120,11 +120,30 @@ export const updateWorkoutStatusRemote = createAsyncThunk('workout/updateStatus'
   }
 });
 
+export const fetchStreakState = createAsyncThunk('workout/fetchStreak', async (_, { rejectWithValue }) => {
+  try {
+    const { data } = await api.get('/workouts/streak');
+    return data;
+  } catch (err) {
+    return rejectWithValue(err.response?.data?.message || 'Failed to load streak state');
+  }
+});
+
+export const pauseStreakToday = createAsyncThunk('workout/pauseStreak', async (_, { rejectWithValue }) => {
+  try {
+    const { data } = await api.post('/workouts/streak/pause');
+    return data;
+  } catch (err) {
+    return rejectWithValue(err.response?.data?.message || 'Failed to pause streak');
+  }
+});
+
 const initialState = {
   todayWorkout: null,
   workoutRange: [],
   versions: [],
   activeVersion: null,
+  streakState: null, // { streak: {current, longest, lastWorkoutDate}, state: 'active'|'grace'|'lost'|'completed_today'|'none', gap }
   loading: false,
   error: null
 };
@@ -367,6 +386,14 @@ const workoutSlice = createSlice({
           state.todayWorkout = action.payload;
         }
         state.workoutRange = state.workoutRange.map(w => w._id === action.payload._id ? action.payload : w);
+      })
+
+      .addCase(fetchStreakState.fulfilled, (state, action) => {
+        state.streakState = action.payload;
+      })
+
+      .addCase(pauseStreakToday.fulfilled, (state, action) => {
+        state.streakState = action.payload;
       });
   }
 });

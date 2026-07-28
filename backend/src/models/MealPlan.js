@@ -32,7 +32,9 @@ const MealPlanSchema = new mongoose.Schema({
   targetCalories: Number,
   chronicConditionAdjustments: [{ condition: String, adjustment: String }],
   aiGenerated: { type: Boolean, default: true },
-  aiExplanation: String
+  aiExplanation: String,
+  isCheatDay: { type: Boolean, default: false },
+  cheatMessage: String
 }, { timestamps: true });
 
 export default mongoose.model('MealPlan', MealPlanSchema);

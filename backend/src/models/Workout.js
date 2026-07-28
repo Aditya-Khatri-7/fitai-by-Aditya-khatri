@@ -21,14 +21,17 @@ const WorkoutSchema = new mongoose.Schema({
     isAISwapped: { type: Boolean, default: false },
     swapReason: String,
     originalExercise: String,
-    notes: String
+    notes: String,
+    instructions: String
   }],
 
   aiGenerated: { type: Boolean, default: true },
   aiExplanation: String,
   recoveryScoreAtGeneration: Number,
   status: { type: String, enum: ['planned', 'in_progress', 'completed', 'skipped', 'modified'], default: 'planned' },
-  caloriesBurned: Number
+  caloriesBurned: Number,
+  isCheatDay: { type: Boolean, default: false },
+  cheatMessage: String
 }, { timestamps: true });
 
 export default mongoose.model('Workout', WorkoutSchema);
