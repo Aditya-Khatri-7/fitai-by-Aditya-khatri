@@ -36,17 +36,32 @@ function excludedBodyPartsFor(injuries = []) {
  * (real cosine similarity over 2,918 real exercises) instead of a hardcoded stub —
  * used whenever Gemini is unavailable, which given the free-tier quota block is most
  * of the time in practice, so this fallback IS the workout generator for most users. */
-async function buildFallbackWorkout(userContext) {
+// Safe substitute focus when every requested muscle group got excluded by an active
+// injury (e.g. a knee injury excludes an entire "Legs" request) — upper-body/core
+// groups that knee/ankle/hip exclusions never touch, so there's always a real,
+// targeted fallback instead of a generic 2-exercise stub.
+const SAFE_SUBSTITUTE_GROUPS = [['Chest', 'Shoulders'], ['Back', 'Lats'], ['Abdominals']];
+
+async function buildFallbackWorkout(userContext, options = {}) {
   const excluded = excludedBodyPartsFor(userContext.injuries);
-  const ALL_GROUPS = [
+  const ALL_GROUPS = options.focusGroups || [
     ['Chest', 'Shoulders'],
     ['Back', 'Lats'],
     ['Quadriceps', 'Hamstrings'],
     ['Biceps', 'Triceps']
   ];
-  const groups = ALL_GROUPS
+  let groups = ALL_GROUPS
     .map(pair => pair.filter(g => !excluded.has(g)))
     .filter(pair => pair.length > 0);
+
+  // Every requested group got excluded by injury safety (not an ML failure) —
+  // substitute a genuinely safe focus rather than falling through to a stub that
+  // (ironically) used to recommend a squat to someone with an excluded knee.
+  let substitutedDueToInjury = false;
+  if (groups.length === 0 && ALL_GROUPS.length > 0) {
+    groups = SAFE_SUBSTITUTE_GROUPS.map(pair => pair.filter(g => !excluded.has(g))).filter(pair => pair.length > 0);
+    substitutedDueToInjury = true;
+  }
 
   const equipment = userContext.equipment?.length ? userContext.equipment : ['bodyweight_only'];
   const level = userContext.fitnessLevel || 'intermediate';
@@ -58,7 +73,7 @@ async function buildFallbackWorkout(userContext) {
         target_muscles: pair,
         equipment,
         level,
-        avoid: [],
+        avoid: userContext.dislikedExerciseNames || [],
         top_k: 2
       })
     )
@@ -86,34 +101,46 @@ async function buildFallbackWorkout(userContext) {
   }
 
   if (exercises.length === 0) {
-    // ML service itself unreachable — last-resort bodyweight-only stub, still better
-    // than nothing and never contradicts injuries since it targets no specific joint.
+    // The ML service itself is genuinely unreachable (network/timeout) — last-resort
+    // stub, built to respect the same injury exclusions rather than blindly
+    // recommending a squat to someone whose knee just got excluded above.
+    const stub = [];
+    if (!excluded.has('Quadriceps')) stub.push({ name: 'Bodyweight Squat', muscleGroups: { primary: ['legs'] }, sets: 3, reps: '15', weight: 'bodyweight', restTime: 60, notes: 'ML service unreachable - generic bodyweight fallback.' });
+    stub.push({ name: 'Push-Up', muscleGroups: { primary: ['chest'] }, sets: 3, reps: '12', weight: 'bodyweight', restTime: 60, notes: 'ML service unreachable - generic bodyweight fallback.' });
+    stub.push({ name: 'Plank Hold', muscleGroups: { primary: ['abs'] }, sets: 3, reps: '45 sec', weight: 'bodyweight', restTime: 45, notes: 'ML service unreachable - generic bodyweight fallback.' });
     return {
       title: 'Bodyweight Full Body Circuit',
       type: 'strength',
       splitFocus: 'Full Body',
       durationTarget: userContext.workoutDuration || 30,
-      exercises: [
-        { name: 'Bodyweight Squat', muscleGroups: { primary: ['legs'] }, sets: 3, reps: '15', weight: 'bodyweight', restTime: 60, notes: 'ML service unreachable - generic bodyweight fallback.' },
-        { name: 'Push-Up', muscleGroups: { primary: ['chest'] }, sets: 3, reps: '12', weight: 'bodyweight', restTime: 60, notes: 'ML service unreachable - generic bodyweight fallback.' }
-      ],
+      exercises: stub,
       explanation: 'ML recommender unreachable — generic bodyweight-only session generated as a last resort.',
       estimatedCalories: 250
     };
   }
 
   return {
-    title: `${userContext.fitnessLevel || 'Adaptive'} Full Body Session`,
+    title: substitutedDueToInjury ? `${options.title || 'Adaptive'} (Adjusted For Injury)` : (options.title || `${userContext.fitnessLevel || 'Adaptive'} Full Body Session`),
     type: 'strength',
-    splitFocus: groups.flat().slice(0, 4).join(', '),
+    splitFocus: substitutedDueToInjury ? groups.flat().slice(0, 4).join(', ') : (options.splitFocus || groups.flat().slice(0, 4).join(', ')),
     durationTarget: userContext.workoutDuration || 45,
     exercises,
-    explanation: `Built from your real equipment (${equipment.join(', ')}) and current injuries via the local exercise recommender — Gemini was unavailable so this used the trained model directly instead of a fixed template.`,
+    explanation: substitutedDueToInjury
+      ? `Your active injury excludes every muscle group in the requested "${options.splitFocus || 'selected'}" split, so today's session was substituted with a safe ${groups.flat().join('/')} focus instead.`
+      : (options.explanation || `Built from your real equipment (${equipment.join(', ')}) and current injuries via the local exercise recommender.`),
     estimatedCalories: 350
   };
 }
 
-export async function generateWorkoutWithAI(userContext) {
+/** Local ML recommender is the default path (per product principle: recommend from
+ * our own trained model, not an external LLM, wherever possible). Gemini is only
+ * attempted when the caller explicitly opts in via userContext.preferAI — and even
+ * then, any failure still falls back to the local recommender below. */
+export async function generateWorkoutWithAI(userContext, options = {}) {
+  if (!userContext.preferAI || !AI_PROVIDER_ENABLED) {
+    return buildFallbackWorkout(userContext, options);
+  }
+
   try {
     const prompt = `
 You are FitAI, an expert adaptive fitness coach. Generate today's optimal workout.
@@ -123,7 +150,7 @@ USER CONTEXT:
 - Fitness Level: ${userContext.fitnessLevel}
 - Current Goal: ${userContext.goal?.type}
 - Available Equipment: ${userContext.equipment?.join(', ')}
-- Workout Duration Target: ${userContext.workoutDuration || 45} minutes
+- Workout Duration Target: ${userContext.workoutDuration || 45} minutes${options.splitFocus ? `\n- Requested Split Focus (must honor): ${options.splitFocus}` : ''}
 
 HEALTH STATUS:
 - Recovery Score: ${userContext.recoveryScore}%
@@ -164,10 +191,44 @@ Respond in this exact JSON format:
   }
 }
 
-const WEEKDAY_SPLIT_HINT = ['Push (Chest/Shoulders/Triceps)', 'Pull (Back/Biceps)', 'Legs', 'Active Recovery / Core', 'Upper Body Hypertrophy', 'Legs & Conditioning', 'Rest'];
+const WEEKDAY_SPLITS = [
+  { splitFocus: 'Push (Chest, Shoulders, Triceps)', focusGroups: [['Chest', 'Shoulders'], ['Triceps']] },
+  { splitFocus: 'Pull (Back, Biceps)', focusGroups: [['Back', 'Lats'], ['Biceps']] },
+  { splitFocus: 'Legs', focusGroups: [['Quadriceps', 'Hamstrings'], ['Glutes', 'Calves']] },
+  { splitFocus: 'Active Recovery / Core', focusGroups: [['Abdominals']] },
+  { splitFocus: 'Upper Body Hypertrophy', focusGroups: [['Chest', 'Shoulders'], ['Back', 'Lats']] },
+  { splitFocus: 'Legs & Conditioning', focusGroups: [['Quadriceps', 'Hamstrings']] },
+  { splitFocus: 'Rest', focusGroups: null }
+];
 
-/** Generates a full 7-day workout plan in one call, one entry per day starting from weekStartDate. */
+/** Builds a real 7-day plan locally by calling the local recommender once per day with
+ * a different muscle-group focus (push/pull/legs/etc.), instead of a single flat
+ * bodyweight-circuit stub repeated all week. */
+async function buildFallbackWeeklyPlan(userContext) {
+  const days = await Promise.all(WEEKDAY_SPLITS.map(async (day, dayOffset) => {
+    if (!day.focusGroups) {
+      return {
+        dayOffset, title: 'Rest Day', type: 'recovery', splitFocus: 'Rest', durationTarget: 0,
+        exercises: [], explanation: 'Scheduled rest day for recovery.', estimatedCalories: 0
+      };
+    }
+    const workout = await buildFallbackWorkout(userContext, {
+      title: day.splitFocus,
+      splitFocus: day.splitFocus,
+      explanation: `Local recommender pick for ${day.splitFocus.toLowerCase()} day, respecting your equipment and injuries.`
+    });
+    return { dayOffset, ...workout };
+  }));
+  return days;
+}
+
+/** Generates a full 7-day workout plan. Local-first per the same policy as
+ * generateWorkoutWithAI — Gemini is only attempted when explicitly requested. */
 export async function generateWeeklyWorkoutPlanWithAI(userContext, weekStartDate) {
+  if (!userContext.preferAI || !AI_PROVIDER_ENABLED) {
+    return buildFallbackWeeklyPlan(userContext);
+  }
+
   try {
     const prompt = `
 You are FitAI, an expert adaptive fitness coach. Generate a sensible 7-day workout plan starting ${weekStartDate}, one entry per day, respecting recovery between muscle groups (don't repeat the same primary muscle group on consecutive high-intensity days) and including at least one rest/active-recovery day.
@@ -201,19 +262,8 @@ Respond with a JSON array of exactly 7 entries (day 0 = ${weekStartDate}), each 
     if (!Array.isArray(parsed) || parsed.length !== 7) throw new Error('Expected a 7-entry array');
     return parsed;
   } catch (error) {
-    console.warn(`[${AI_PROVIDER} AI Fallback] Using local rule engine for weekly plan:`, error.message);
-    return WEEKDAY_SPLIT_HINT.map((splitFocus, dayOffset) => ({
-      dayOffset,
-      title: splitFocus,
-      type: splitFocus.toLowerCase().includes('rest') ? 'recovery' : 'strength',
-      splitFocus,
-      durationTarget: userContext.workoutDuration || 45,
-      exercises: splitFocus.toLowerCase().includes('rest')
-        ? []
-        : [{ name: 'Bodyweight Circuit', muscleGroups: { primary: ['full_body'] }, sets: 3, reps: '12-15', weight: 'bodyweight', restTime: 60, equipment: 'bodyweight_only', notes: 'Rule-engine fallback plan.' }],
-      explanation: 'Generated via rule engine fallback covering major muscle groups across the week with a rest day.',
-      estimatedCalories: splitFocus.toLowerCase().includes('rest') ? 0 : 350
-    }));
+    console.warn(`[${AI_PROVIDER} AI Fallback] Using local recommender for weekly plan:`, error.message);
+    return buildFallbackWeeklyPlan(userContext);
   }
 }
 
@@ -226,8 +276,38 @@ function annotateMealTiming(meal) {
   return { ...meal, timingNote: timing.concern ? timing : null };
 }
 
-/** Generates a full day's meal plan (all 4 slots). */
+/** Real diet-aware meal plan built from actual Indian dish templates. */
+function buildLocalMealPlan(userContext) {
+  const rawMeals = buildIndianMealPlan(userContext.dietType, userContext.cuisinePerMeal || {});
+  const fallbackMeals = rawMeals.map(m => ({
+    ...m,
+    totalCalories: m.foods.reduce((sum, f) => sum + (f.calories || 0), 0)
+  })).map(annotateMealTiming);
+
+  const dailyTotals = fallbackMeals.reduce((acc, m) => ({
+    calories: acc.calories + m.totalCalories,
+    protein: acc.protein + m.foods.reduce((s, f) => s + (f.protein || 0), 0),
+    carbs: acc.carbs + m.foods.reduce((s, f) => s + (f.carbs || 0), 0),
+    fat: acc.fat + m.foods.reduce((s, f) => s + (f.fat || 0), 0),
+    fiber: acc.fiber + m.foods.reduce((s, f) => s + (f.fiber || 0), 0)
+  }), { calories: 0, protein: 0, carbs: 0, fat: 0, fiber: 0 });
+
+  return {
+    meals: fallbackMeals,
+    dailyTotals,
+    targetCalories: userContext.targetCalories || 2200,
+    chronicConditionAdjustments: [],
+    explanation: `Generated from real Indian dishes matching your ${userContext.dietType || 'omnivore'} diet preference${userContext.cuisinePerMeal && Object.values(userContext.cuisinePerMeal).some(Boolean) ? ' and your regional cuisine preferences per meal' : ''}, with a deliberately lighter dinner for better sleep quality.`
+  };
+}
+
+/** Generates a full day's meal plan (all 4 slots). Local-first, matching the
+ * workout generator's policy — Gemini is only attempted when explicitly requested. */
 export async function generateMealPlanWithAI(userContext) {
+  if (!userContext.preferAI || !AI_PROVIDER_ENABLED) {
+    return buildLocalMealPlan(userContext);
+  }
+
   try {
     const prompt = `
 You are FitAI, an expert nutrition coach. Generate today's optimal meal plan across breakfast, lunch, snack, and dinner.
@@ -258,35 +338,30 @@ Respond in this exact JSON format:
     return parsed;
   } catch (error) {
     console.warn(`[${AI_PROVIDER} AI Fallback] Using real Indian dish templates (diet-aware) for meal plan:`, error.message);
-    const rawMeals = buildIndianMealPlan(userContext.dietType);
-    const fallbackMeals = rawMeals.map(m => ({
-      ...m,
-      totalCalories: m.foods.reduce((sum, f) => sum + (f.calories || 0), 0)
-    })).map(annotateMealTiming);
-
-    const dailyTotals = fallbackMeals.reduce((acc, m) => ({
-      calories: acc.calories + m.totalCalories,
-      protein: acc.protein + m.foods.reduce((s, f) => s + (f.protein || 0), 0),
-      carbs: acc.carbs + m.foods.reduce((s, f) => s + (f.carbs || 0), 0),
-      fat: acc.fat + m.foods.reduce((s, f) => s + (f.fat || 0), 0),
-      fiber: acc.fiber + m.foods.reduce((s, f) => s + (f.fiber || 0), 0)
-    }), { calories: 0, protein: 0, carbs: 0, fat: 0, fiber: 0 });
-
-    return {
-      meals: fallbackMeals,
-      dailyTotals,
-      targetCalories: userContext.targetCalories || 2200,
-      chronicConditionAdjustments: [],
-      explanation: `Generated from real Indian dishes matching your ${userContext.dietType || 'omnivore'} diet preference, with a deliberately lighter dinner for better sleep quality.`
-    };
+    return buildLocalMealPlan(userContext);
   }
 }
 
-/** Regenerates a single meal slot only (per-meal "Swap This Meal" feature). */
+/** Regenerates a single meal slot only (per-meal "Swap This Meal" feature). Local-first. */
 export async function regenerateSingleMealWithAI(mealType, userContext) {
   if (!MEAL_SLOTS.includes(mealType)) {
     throw new Error(`Invalid meal type: ${mealType}`);
   }
+
+  const buildLocalMeal = () => {
+    const cuisine = userContext.cuisine || userContext.cuisinePerMeal?.[mealType];
+    const dish = pickSingleMeal(mealType, userContext.dietType, cuisine);
+    return annotateMealTiming({
+      type: mealType,
+      ...dish,
+      totalCalories: dish.foods.reduce((sum, f) => sum + (f.calories || 0), 0)
+    });
+  };
+
+  if (!userContext.preferAI || !AI_PROVIDER_ENABLED) {
+    return buildLocalMeal();
+  }
+
   try {
     const prompt = `
 You are FitAI, an expert nutrition coach. Generate ONE replacement meal for the "${mealType}" slot only.
@@ -305,12 +380,7 @@ Respond with exactly one JSON object matching: ${MEAL_TEMPLATE_SCHEMA}
     return annotateMealTiming({ ...meal, type: mealType });
   } catch (error) {
     console.warn(`[${AI_PROVIDER} AI Fallback] Using real Indian dish template (diet-aware) for single meal:`, error.message);
-    const dish = pickSingleMeal(mealType, userContext.dietType);
-    return annotateMealTiming({
-      type: mealType,
-      ...dish,
-      totalCalories: dish.foods.reduce((sum, f) => sum + (f.calories || 0), 0)
-    });
+    return buildLocalMeal();
   }
 }
 
@@ -368,7 +438,7 @@ function buildMealSchema() {
  *     clarifying question instead of guessing or faking success.
  */
 export async function resolveCoachAction(message, context = {}) {
-  const localResult = classifyLocally(message);
+  const localResult = classifyLocally(message, context.appState || {});
   if (localResult) {
     return enrichWithMLContext(localResult, context.appState || {});
   }

@@ -1,8 +1,10 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
 import { setAISwapModalOpen } from '../../redux/slices/uiSlice';
-import { swapExercise } from '../../redux/slices/workoutSlice';
-import { getRecommendedSwap } from '../../utils/exerciseGraph';
+import { swapExercise, persistWorkoutEdit } from '../../redux/slices/workoutSlice';
+import { fetchMe } from '../../redux/slices/authSlice';
+import { store } from '../../redux/store';
+import { getRecommendedSwapCandidates } from '../../utils/exerciseGraph';
 import { Shuffle, Sparkles, X, Check } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -10,10 +12,14 @@ export function AISwapModal() {
   const dispatch = useDispatch();
   const { isAISwapModalOpen, selectedExerciseForSwap } = useSelector(state => state.ui);
   const { user } = useSelector(state => state.auth);
+  const [selectedIdx, setSelectedIdx] = useState(0);
+
+  useEffect(() => { setSelectedIdx(0); }, [selectedExerciseForSwap]);
 
   if (!isAISwapModalOpen || !selectedExerciseForSwap) return null;
 
-  const recommendation = getRecommendedSwap(selectedExerciseForSwap, user);
+  const candidates = getRecommendedSwapCandidates(selectedExerciseForSwap, user);
+  const recommendation = candidates[selectedIdx] || candidates[0];
 
   const handleConfirmSwap = () => {
     dispatch(swapExercise({
@@ -26,6 +32,20 @@ export function AISwapModal() {
       },
       reason: recommendation.reason
     }));
+
+    // Persist so the swap survives a refresh instead of reverting on next fetch.
+    const freshWorkout = store.getState().workout.todayWorkout;
+    if (freshWorkout?._id) {
+      dispatch(persistWorkoutEdit({
+        id: freshWorkout._id,
+        exercises: freshWorkout.exercises,
+        versionLabel: `Swapped ${selectedExerciseForSwap.name} for ${recommendation.replacement}`,
+        versionReason: 'ai_adaptation',
+        versionExplanation: recommendation.reason
+      })).then(() => {
+        dispatch(fetchMe()); // refresh so the "learned from your swaps" panel updates live
+      });
+    }
 
     toast.success(`Swapped to ${recommendation.replacement}!`);
     dispatch(setAISwapModalOpen({ isOpen: false }));
@@ -51,19 +71,33 @@ export function AISwapModal() {
           </div>
         </div>
 
-        {/* Comparison Box */}
-        <div className="grid grid-cols-2 gap-3 text-xs">
-          <div className="p-3.5 rounded-2xl bg-[var(--bg-tertiary)] border border-[var(--border-color)] space-y-1">
-            <span className="text-[10px] font-bold text-[var(--text-tertiary)] uppercase block">Original Exercise</span>
-            <p className="font-extrabold text-[var(--text-primary)]">{selectedExerciseForSwap.name}</p>
-            <p className="text-[11px] text-[var(--text-secondary)] font-mono">{selectedExerciseForSwap.sets} sets × {selectedExerciseForSwap.reps}</p>
-          </div>
+        {/* Original Exercise */}
+        <div className="p-3.5 rounded-2xl bg-[var(--bg-tertiary)] border border-[var(--border-color)] space-y-1 text-xs">
+          <span className="text-[10px] font-bold text-[var(--text-tertiary)] uppercase block">Original Exercise</span>
+          <p className="font-extrabold text-[var(--text-primary)]">{selectedExerciseForSwap.name}</p>
+          <p className="text-[11px] text-[var(--text-secondary)] font-mono">{selectedExerciseForSwap.sets} sets × {selectedExerciseForSwap.reps}</p>
+        </div>
 
-          <div className="p-3.5 rounded-2xl bg-[var(--accent-glow)] border border-[var(--accent-primary)]/40 space-y-1">
-            <span className="text-[10px] font-bold text-[var(--accent-primary)] uppercase block">AI Replacement</span>
-            <p className="font-extrabold text-[var(--text-primary)]">{recommendation.replacement}</p>
-            <p className="text-[11px] text-[var(--accent-primary)] font-mono font-bold">{recommendation.sets} sets × {recommendation.reps}</p>
-          </div>
+        {/* Real alternatives — pick one instead of the system imposing a single swap */}
+        <div className="space-y-2">
+          <span className="text-[10px] font-bold text-[var(--text-tertiary)] uppercase block">Choose A Replacement ({candidates.length} options)</span>
+          {candidates.map((c, idx) => (
+            <button
+              key={c.replacementExerciseId || idx}
+              onClick={() => setSelectedIdx(idx)}
+              className={`w-full text-left p-3.5 rounded-2xl border transition-all space-y-0.5 ${
+                idx === selectedIdx
+                  ? 'bg-[var(--accent-glow)] border-[var(--accent-primary)] ring-1 ring-[var(--accent-primary)]/40'
+                  : 'bg-[var(--bg-tertiary)] border-[var(--border-color)] hover:border-[var(--accent-primary)]/40'
+              }`}
+            >
+              <div className="flex items-center justify-between">
+                <p className={`font-extrabold text-xs ${idx === selectedIdx ? 'text-[var(--accent-primary)]' : 'text-[var(--text-primary)]'}`}>{c.replacement}</p>
+                {idx === selectedIdx && <Check className="w-4 h-4 text-[var(--accent-primary)]" />}
+              </div>
+              <p className="text-[11px] text-[var(--text-secondary)] font-mono">{c.sets} sets × {c.reps} • {c.weight}</p>
+            </button>
+          ))}
         </div>
 
         {/* AI Reason */}

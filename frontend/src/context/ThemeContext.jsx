@@ -35,6 +35,14 @@ export function ThemeProvider({ children }) {
 
   const [isThemeSwitcherOpen, setIsThemeSwitcherOpen] = useState(false);
 
+  const [voiceStyle, setVoiceStyleState] = useState(() => {
+    return localStorage.getItem('fitai_voice_style') || 'default';
+  });
+
+  const [voiceGender, setVoiceGenderState] = useState(() => {
+    return localStorage.getItem('fitai_voice_gender') || 'female';
+  });
+
   // Real narrow-viewport detection (an actual phone visiting the site) — distinct
   // from mobileMode, which is a manual 390px phone-frame *simulator* for desktop
   // users. Without this, a real phone got the full desktop sidebar (pl-64) squeezed
@@ -77,6 +85,23 @@ export function ThemeProvider({ children }) {
     setIsBotEnabledState(prev => {
       const next = !prev;
       localStorage.setItem('fitai_bot_enabled', JSON.stringify(next));
+      return next;
+    });
+  };
+
+  const VOICE_STYLES = ['default', 'soft', 'motivating'];
+  const cycleVoiceStyle = () => {
+    setVoiceStyleState(prev => {
+      const next = VOICE_STYLES[(VOICE_STYLES.indexOf(prev) + 1) % VOICE_STYLES.length];
+      localStorage.setItem('fitai_voice_style', next);
+      return next;
+    });
+  };
+
+  const toggleVoiceGender = () => {
+    setVoiceGenderState(prev => {
+      const next = prev === 'female' ? 'male' : 'female';
+      localStorage.setItem('fitai_voice_gender', next);
       return next;
     });
   };
@@ -129,7 +154,11 @@ export function ThemeProvider({ children }) {
         mouseTrackingEnabled,
         toggleMouseTracking,
         isThemeSwitcherOpen,
-        setIsThemeSwitcherOpen
+        setIsThemeSwitcherOpen,
+        voiceStyle,
+        cycleVoiceStyle,
+        voiceGender,
+        toggleVoiceGender
       }}
     >
       {children}

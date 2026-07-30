@@ -5,16 +5,17 @@ import { logout } from '../../redux/slices/authSlice';
 import { useTheme } from '../../context/ThemeContext';
 import {
   X, HeartPulse, Stethoscope, Bot, BarChart3, Calendar, UserCircle,
-  Power, Eye, EyeOff, Sun, Moon, Palette, LogOut
+  Power, Eye, EyeOff, Sun, Moon, Palette, LogOut, Mic, UserRound, User, PartyPopper
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
-const MORE_LINKS = [
+export const MORE_LINKS = [
   { path: '/health', label: 'Health & Wearables', icon: HeartPulse },
   { path: '/health-update', label: 'Health Status Update', icon: Stethoscope, badge: 'NEW' },
   { path: '/ai-coach', label: '3D AI Studio', icon: Bot, badge: 'AI' },
   { path: '/analytics', label: 'Analytics', icon: BarChart3 },
   { path: '/calendar', label: 'Smart Calendar', icon: Calendar },
+  { path: '/cheat', label: 'Cheat Center', icon: PartyPopper, badge: '🎉' },
   { path: '/profile', label: 'Profile', icon: UserCircle }
 ];
 
@@ -26,8 +27,12 @@ export function MoreMenu({ isOpen, onClose }) {
     isBotEnabled, toggleBotEnabled,
     mouseTrackingEnabled, toggleMouseTracking,
     isLightTheme, toggleLightDark,
-    setIsThemeSwitcherOpen
+    setIsThemeSwitcherOpen,
+    voiceStyle, cycleVoiceStyle,
+    voiceGender, toggleVoiceGender
   } = useTheme();
+
+  const VOICE_STYLE_LABELS = { default: 'Default', soft: 'Soft', motivating: 'Motivating' };
 
   if (!isOpen) return null;
 
@@ -96,6 +101,24 @@ export function MoreMenu({ isOpen, onClose }) {
             {mouseTrackingEnabled ? <Eye className="w-5 h-5 text-emerald-400 shrink-0" /> : <EyeOff className="w-5 h-5 text-slate-400 shrink-0" />}
             <span className="flex-1 text-left">3D Eye Tracking</span>
             <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-slate-900">{mouseTrackingEnabled ? 'ON' : 'OFF'}</span>
+          </button>
+
+          <button
+            onClick={() => { cycleVoiceStyle(); toast.success(`Voice Style: ${VOICE_STYLE_LABELS[voiceStyle === 'default' ? 'soft' : voiceStyle === 'soft' ? 'motivating' : 'default']}`); }}
+            className="w-full flex items-center gap-3 px-3.5 py-3 rounded-xl font-semibold text-sm border border-[var(--border-color)] bg-[var(--bg-tertiary)] text-[var(--text-primary)] transition-all"
+          >
+            <Mic className="w-5 h-5 text-[var(--accent-primary)] shrink-0" />
+            <span className="flex-1 text-left">Voice Style</span>
+            <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-slate-900">{VOICE_STYLE_LABELS[voiceStyle]}</span>
+          </button>
+
+          <button
+            onClick={() => { toggleVoiceGender(); toast.success(`Voice set to ${voiceGender === 'female' ? 'Male' : 'Female'}`); }}
+            className="w-full flex items-center gap-3 px-3.5 py-3 rounded-xl font-semibold text-sm border border-[var(--border-color)] bg-[var(--bg-tertiary)] text-[var(--text-primary)] transition-all"
+          >
+            {voiceGender === 'female' ? <UserRound className="w-5 h-5 text-[var(--accent-primary)] shrink-0" /> : <User className="w-5 h-5 text-[var(--accent-primary)] shrink-0" />}
+            <span className="flex-1 text-left">Voice Gender</span>
+            <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-slate-900">{voiceGender === 'female' ? 'Female' : 'Male'}</span>
           </button>
 
           <button

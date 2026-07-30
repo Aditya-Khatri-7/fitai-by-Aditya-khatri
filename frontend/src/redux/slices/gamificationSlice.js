@@ -1,4 +1,6 @@
-import { createSlice } from '@reduxjs/toolkit';
+import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
+import api from '../../services/api';
+import { logout } from './authSlice';
 
 const RANKS = [
   { minLevel: 1, title: 'Novice Lifter' },
@@ -13,9 +15,6 @@ const getRankTitle = (level) => {
   return rank ? rank.title : 'Novice Lifter';
 };
 
-// No backend persistence exists yet for gamification (see task: persist XP/level/
-// achievements to backend), so every page load starts from these genuine zero/
-// starter values rather than a fabricated high level - matches resetGamificationForNewUser.
 const initialState = {
   level: 1,
   xp: 0,
@@ -78,8 +77,80 @@ const initialState = {
     { id: 'perk_4', levelReq: 20, name: 'Apex Synergy', desc: 'Double daily quest XP rewards on 7+ day streaks', unlocked: false }
   ],
   lastVictoryDrop: null,
-  soundEnabled: true
+  soundEnabled: true,
+  loading: false,
+  error: null
 };
+
+// Maps the backend's compact persisted shape ({level, xp, unlockedPerkIds, ...})
+// back onto this slice's richer display shape (full quest/achievement/perk objects
+// with a derived `completed`/`unlocked` flag) rather than trusting the client to
+// keep its own copy of level/xp math in sync with the server.
+function mergeGamificationState(state, backend) {
+  if (!backend) return;
+  state.level = backend.level ?? state.level;
+  state.xp = backend.xp ?? state.xp;
+  state.xpToNextLevel = backend.xpToNextLevel ?? state.xpToNextLevel;
+  state.rankTitle = backend.rankTitle || getRankTitle(state.level);
+  if (backend.archetype?.id) state.archetype = backend.archetype;
+  if (backend.attributes) state.attributes = backend.attributes;
+
+  const completedIds = backend.dailyQuestsCompleted || [];
+  state.dailyQuests = state.dailyQuests.map(q => ({ ...q, completed: completedIds.includes(q.id) }));
+
+  const unlockedAchievementIds = backend.unlockedAchievementIds || [];
+  state.achievements = state.achievements.map(a => ({ ...a, unlocked: unlockedAchievementIds.includes(a.id) }));
+
+  const unlockedPerkIds = backend.unlockedPerkIds || [];
+  state.skillTreePerks = state.skillTreePerks.map(p => ({ ...p, unlocked: unlockedPerkIds.includes(p.id) }));
+
+  state.prHallOfFame = backend.prHallOfFame || [];
+}
+
+export const fetchGamificationState = createAsyncThunk('gamification/fetch', async (_, { rejectWithValue }) => {
+  try {
+    const { data } = await api.get('/gamification');
+    return data;
+  } catch (err) {
+    return rejectWithValue(err.response?.data?.message || 'Failed to load gamification state');
+  }
+});
+
+export const addXp = createAsyncThunk('gamification/addXp', async (amount, { rejectWithValue }) => {
+  try {
+    const { data } = await api.post('/gamification/xp', { amount });
+    return data;
+  } catch (err) {
+    return rejectWithValue(err.response?.data?.message || 'Failed to award XP');
+  }
+});
+
+export const completeQuest = createAsyncThunk('gamification/completeQuest', async (questId, { rejectWithValue }) => {
+  try {
+    const { data } = await api.post(`/gamification/quests/${questId}/complete`);
+    return data;
+  } catch (err) {
+    return rejectWithValue(err.response?.data?.message || 'Failed to complete quest');
+  }
+});
+
+export const setArchetype = createAsyncThunk('gamification/setArchetype', async (archetype, { rejectWithValue }) => {
+  try {
+    const { data } = await api.post('/gamification/archetype', { archetype });
+    return data;
+  } catch (err) {
+    return rejectWithValue(err.response?.data?.message || 'Failed to set archetype');
+  }
+});
+
+export const addPRRecord = createAsyncThunk('gamification/addPRRecord', async (record, { rejectWithValue }) => {
+  try {
+    const { data } = await api.post('/gamification/pr-records', { record });
+    return data;
+  } catch (err) {
+    return rejectWithValue(err.response?.data?.message || 'Failed to add PR record');
+  }
+});
 
 const gamificationSlice = createSlice({
   name: 'gamification',
@@ -95,52 +166,6 @@ const gamificationSlice = createSlice({
       state.achievements = state.achievements.map(a => ({ ...a, unlocked: false }));
       state.prHallOfFame = [];
     },
-    addXp: (state, action) => {
-      const amount = action.payload;
-      state.xp += amount;
-
-      // Check level up
-      while (state.xp >= state.xpToNextLevel) {
-        state.xp -= state.xpToNextLevel;
-        state.level += 1;
-        state.xpToNextLevel = Math.round(state.xpToNextLevel * 1.25);
-        state.rankTitle = getRankTitle(state.level);
-        
-        // Attribute boosts on level up
-        state.attributes.strength = Math.min(100, state.attributes.strength + 2);
-        state.attributes.endurance = Math.min(100, state.attributes.endurance + 1);
-        state.attributes.consistency = Math.min(100, state.attributes.consistency + 2);
-
-        // Check unlocked perks
-        state.skillTreePerks.forEach(perk => {
-          if (state.level >= perk.levelReq) {
-            perk.unlocked = true;
-          }
-        });
-      }
-    },
-    completeQuest: (state, action) => {
-      const questId = action.payload;
-      const quest = state.dailyQuests.find(q => q.id === questId);
-      if (quest && !quest.completed) {
-        quest.completed = true;
-        state.xp += quest.xp;
-        gamificationSlice.caseReducers.addXp(state, { payload: 0 });
-      }
-    },
-    setArchetype: (state, action) => {
-      state.archetype = action.payload;
-      if (action.payload.bonusStats) {
-        Object.entries(action.payload.bonusStats).forEach(([stat, bonus]) => {
-          state.attributes[stat] = Math.min(100, (state.attributes[stat] || 50) + bonus);
-        });
-      }
-    },
-    addPRRecord: (state, action) => {
-      state.prHallOfFame.unshift(action.payload);
-      state.xp += 150;
-      gamificationSlice.caseReducers.addXp(state, { payload: 0 });
-    },
     setVictoryDrop: (state, action) => {
       state.lastVictoryDrop = action.payload;
     },
@@ -150,15 +175,30 @@ const gamificationSlice = createSlice({
     toggleSound: (state) => {
       state.soundEnabled = !state.soundEnabled;
     }
+  },
+  extraReducers: (builder) => {
+    builder
+      .addCase(fetchGamificationState.pending, (state) => { state.loading = true; })
+      .addCase(fetchGamificationState.fulfilled, (state, action) => {
+        state.loading = false;
+        mergeGamificationState(state, action.payload);
+      })
+      .addCase(fetchGamificationState.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload;
+      })
+      .addCase(addXp.fulfilled, (state, action) => mergeGamificationState(state, action.payload))
+      .addCase(completeQuest.fulfilled, (state, action) => mergeGamificationState(state, action.payload))
+      .addCase(setArchetype.fulfilled, (state, action) => mergeGamificationState(state, action.payload))
+      .addCase(addPRRecord.fulfilled, (state, action) => mergeGamificationState(state, action.payload))
+      // Without this, logging in as a different user in the same tab kept showing
+      // the previous account's level/XP/achievements until a fetch happened to fire.
+      .addCase(logout, () => initialState);
   }
 });
 
 export const {
   resetGamificationForNewUser,
-  addXp,
-  completeQuest,
-  setArchetype,
-  addPRRecord,
   setVictoryDrop,
   clearVictoryDrop,
   toggleSound

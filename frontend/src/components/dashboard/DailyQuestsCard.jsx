@@ -1,14 +1,17 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
 import { completeQuest } from '../../redux/slices/gamificationSlice';
 import { useTheme } from '../../context/ThemeContext';
+import { Modal } from '../ui/Modal';
 import { Zap, CheckCircle2, Award } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 export function DailyQuestsCard() {
   const dispatch = useDispatch();
   const { level, xp, xpToNextLevel, rankTitle, dailyQuests, archetype } = useSelector(state => state.gamification);
-  const { mobileMode } = useTheme();
+  const { mobileMode, isNarrowViewport } = useTheme();
+  const isCompact = mobileMode || isNarrowViewport;
+  const [confirmQuest, setConfirmQuest] = useState(null);
 
   const handleClaim = (quest) => {
     if (!quest.completed) {
@@ -17,7 +20,25 @@ export function DailyQuestsCard() {
     }
   };
 
+  // On mobile, claiming opens a confirmation dialog (matching the Injury Manager
+  // pattern) instead of instantly firing — desktop keeps the instant one-tap claim.
+  const handleClaimClick = (quest) => {
+    if (quest.completed) return;
+    if (isCompact) setConfirmQuest(quest);
+    else handleClaim(quest);
+  };
+
+  const handleConfirmClaim = () => {
+    if (confirmQuest) {
+      handleClaim(confirmQuest);
+      setConfirmQuest(null);
+    }
+  };
+
   const xpPercent = Math.min(100, Math.round((xp / xpToNextLevel) * 100));
+  const completedCount = dailyQuests.filter(q => q.completed).length;
+  const incompleteQuests = dailyQuests.filter(q => !q.completed);
+  const activeQuest = incompleteQuests[0] || null;
 
   return (
     <div className="p-4 sm:p-6 rounded-3xl bg-[var(--bg-secondary)] border border-[var(--border-color)] shadow-2xl space-y-4 relative overflow-hidden">
@@ -58,56 +79,78 @@ export function DailyQuestsCard() {
         </div>
       </div>
 
-      {/* Quests Grid */}
+      {/* Quests — one active challenge shown at a time instead of a whole grid at
+          once, so the dashboard doesn't read as cluttered with claim buttons.
+          Claiming auto-advances to the next incomplete quest. */}
       <div className="space-y-2.5">
-        <span className="text-[10px] font-extrabold text-[var(--text-tertiary)] uppercase tracking-widest block">
-          ACTIVE DAILY CHALLENGES
-        </span>
-
-        <div className={`grid grid-cols-1 ${mobileMode ? 'grid-cols-1' : 'sm:grid-cols-2 md:grid-cols-3'} gap-3`}>
-          {dailyQuests.map((quest) => (
-            <div
-              key={quest.id}
-              className={`p-3.5 rounded-2xl border transition-all space-y-3 flex flex-col justify-between ${
-                quest.completed
-                  ? 'bg-emerald-950/20 border-emerald-500/40 text-emerald-300'
-                  : 'bg-[var(--bg-tertiary)] border-[var(--border-color)] hover:border-[var(--accent-primary)]/50'
-              }`}
-            >
-              <div className="space-y-1">
-                <div className="flex justify-between items-center gap-2">
-                  <span className="font-extrabold text-xs text-[var(--text-primary)] truncate">{quest.title}</span>
-                  <span className="px-2 py-0.5 rounded bg-amber-500/20 text-amber-400 font-mono font-bold text-[10px] shrink-0">
-                    +{quest.xp} XP
-                  </span>
-                </div>
-                <p className="text-[11px] text-[var(--text-secondary)] font-medium leading-relaxed">{quest.desc}</p>
-              </div>
-
-              <button
-                onClick={() => handleClaim(quest)}
-                disabled={quest.completed}
-                className={`w-full py-2 rounded-xl font-extrabold text-xs flex items-center justify-center gap-1.5 transition-all ${
-                  quest.completed
-                    ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 cursor-default'
-                    : 'bg-[var(--accent-primary)] text-slate-950 hover:opacity-90 shadow-md'
-                }`}
-              >
-                {quest.completed ? (
-                  <>
-                    <CheckCircle2 className="w-4 h-4" /> Claimed
-                  </>
-                ) : (
-                  <>
-                    <Award className="w-4 h-4" /> Claim Reward
-                  </>
-                )}
-              </button>
-            </div>
-          ))}
+        <div className="flex items-center justify-between">
+          <span className="text-[10px] font-extrabold text-[var(--text-tertiary)] uppercase tracking-widest block">
+            ACTIVE DAILY CHALLENGE
+          </span>
+          <span className="text-[10px] font-bold text-[var(--text-tertiary)] font-mono">{completedCount} / {dailyQuests.length} claimed</span>
         </div>
+
+        {activeQuest ? (
+          <div className="p-4 rounded-2xl border bg-[var(--bg-tertiary)] border-[var(--border-color)] space-y-3 animate-in fade-in duration-300">
+            <div className="flex justify-between items-center gap-2">
+              <span className="font-extrabold text-sm text-[var(--text-primary)]">{activeQuest.title}</span>
+              <span className="px-2 py-0.5 rounded bg-amber-500/20 text-amber-400 font-mono font-bold text-[10px] shrink-0">
+                +{activeQuest.xp} XP
+              </span>
+            </div>
+            <p className="text-xs text-[var(--text-secondary)] font-medium leading-relaxed">{activeQuest.desc}</p>
+
+            <button
+              onClick={() => handleClaimClick(activeQuest)}
+              className="w-full py-2.5 rounded-xl font-extrabold text-xs flex items-center justify-center gap-1.5 transition-all bg-[var(--accent-primary)] text-slate-950 hover:opacity-90 shadow-md"
+            >
+              <Award className="w-4 h-4" /> Claim Reward
+            </button>
+
+            {dailyQuests.length > 1 && (
+              <div className="flex items-center justify-center gap-1.5 pt-1">
+                {dailyQuests.map((q) => (
+                  <span
+                    key={q.id}
+                    className={`h-1.5 rounded-full transition-all ${
+                      q.completed ? 'w-4 bg-emerald-400' : q.id === activeQuest.id ? 'w-6 bg-[var(--accent-primary)]' : 'w-1.5 bg-[var(--border-color)]'
+                    }`}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
+        ) : (
+          <div className="p-6 rounded-2xl border bg-emerald-950/20 border-emerald-500/40 text-center space-y-2 animate-in fade-in duration-300">
+            <CheckCircle2 className="w-8 h-8 text-emerald-400 mx-auto" />
+            <p className="font-extrabold text-emerald-400 text-sm">🎉 Congrats! All rewards claimed.</p>
+            <p className="text-xs text-[var(--text-secondary)]">Check back tomorrow for new daily challenges.</p>
+          </div>
+        )}
       </div>
 
+      <Modal isOpen={!!confirmQuest} onClose={() => setConfirmQuest(null)} title="Claim Daily Reward" maxWidth="max-w-sm">
+        {confirmQuest && (
+          <div className="space-y-4 text-center">
+            <div className="w-14 h-14 rounded-2xl bg-amber-500/20 text-amber-400 mx-auto flex items-center justify-center">
+              <Award className="w-8 h-8" />
+            </div>
+            <div>
+              <h4 className="font-extrabold text-[var(--text-primary)]">{confirmQuest.title}</h4>
+              <p className="text-xs text-[var(--text-secondary)] mt-1 leading-relaxed">{confirmQuest.desc}</p>
+            </div>
+            <div className="px-4 py-2 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-400 font-mono font-extrabold text-sm inline-block">
+              +{confirmQuest.xp} XP
+            </div>
+            <button
+              onClick={handleConfirmClaim}
+              className="w-full py-3 rounded-xl bg-[var(--accent-primary)] text-slate-950 font-extrabold text-sm shadow-lg flex items-center justify-center gap-2"
+            >
+              <Award className="w-4 h-4" /> Claim Reward
+            </button>
+          </div>
+        )}
+      </Modal>
     </div>
   );
 }

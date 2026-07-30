@@ -21,6 +21,8 @@ import healthUpdateRoutes from './routes/healthUpdateRoutes.js';
 import wearableRoutes from './routes/wearableRoutes.js';
 import mealPlanRoutes from './routes/mealPlanRoutes.js';
 import medicalIntakeRoutes from './routes/medicalIntakeRoutes.js';
+import gamificationRoutes from './routes/gamificationRoutes.js';
+import cheatRoutes from './routes/cheatRoutes.js';
 import { errorHandler } from './middleware/errorHandler.js';
 
 const app = express();
@@ -35,7 +37,10 @@ const io = new Server(server, {
 // Middleware
 app.use(helmet({ contentSecurityPolicy: false }));
 app.use(cors());
-app.use(express.json());
+// 2mb (not the 100kb default) so base64-encoded photo uploads (yoga pose check,
+// meal photo logging — see mlRoutes.js) fit through the same JSON body path as
+// every other ML request, instead of adding separate multipart/multer plumbing.
+app.use(express.json({ limit: '2mb' }));
 
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000,
@@ -55,6 +60,8 @@ app.use('/api/health', healthUpdateRoutes);
 app.use('/api/wearable', wearableRoutes);
 app.use('/api/nutrition', mealPlanRoutes);
 app.use('/api/health/intake', medicalIntakeRoutes);
+app.use('/api/gamification', gamificationRoutes);
+app.use('/api/cheat', cheatRoutes);
 
 app.get('/api/healthcheck', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date(), service: 'FitAI Backend API v2' });

@@ -29,29 +29,29 @@ export function MLInsightsCard() {
         <p className="text-[11px] text-[var(--text-tertiary)]">ML service offline or not yet trained — run ml/run_pipeline.py.</p>
       )}
 
-      <div className="grid grid-cols-3 gap-3 text-xs">
-        <div className="p-3 rounded-xl bg-[var(--bg-tertiary)] border border-[var(--border-color)] space-y-1">
-          <span className="text-[var(--text-tertiary)] text-[10px] font-bold uppercase">Recovery Regressor</span>
-          <p className="font-extrabold text-[var(--text-primary)] font-mono">XGBoost</p>
-          <span className="text-[var(--accent-primary)] text-[10px] font-semibold block">
-            {metrics ? `MAE: ${metrics.recovery.mae.toFixed(2)} | R²: ${metrics.recovery.r2.toFixed(2)}` : '--'}
-          </span>
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-3 text-xs">
+        <div className="p-3 rounded-xl bg-[var(--bg-tertiary)] border border-[var(--border-color)] flex sm:flex-col items-center sm:items-start gap-3 sm:gap-1">
+          <span className="text-[var(--text-tertiary)] text-[10px] font-bold uppercase w-28 sm:w-auto shrink-0">Recovery Regressor</span>
+          <div className="flex sm:flex-col items-center sm:items-start gap-2 sm:gap-0.5 min-w-0">
+            <p className="font-extrabold text-[var(--text-primary)] font-mono text-[11px]">XGBoost</p>
+            <span className="text-[var(--accent-primary)] text-[10px] font-semibold">{metrics ? `MAE: ${metrics.recovery.mae.toFixed(2)} · R²: ${metrics.recovery.r2.toFixed(2)}` : '--'}</span>
+          </div>
         </div>
 
-        <div className="p-3 rounded-xl bg-[var(--bg-tertiary)] border border-[var(--border-color)] space-y-1">
-          <span className="text-[var(--text-tertiary)] text-[10px] font-bold uppercase">Injury Classifier</span>
-          <p className="font-extrabold text-[var(--text-primary)] font-mono">XGBoost Multi-Class</p>
-          <span className="text-purple-400 text-[10px] font-semibold block">
-            {metrics ? `Weighted F1: ${metrics.injury.f1.toFixed(2)}` : '--'}
-          </span>
+        <div className="p-3 rounded-xl bg-[var(--bg-tertiary)] border border-[var(--border-color)] flex sm:flex-col items-center sm:items-start gap-3 sm:gap-1">
+          <span className="text-[var(--text-tertiary)] text-[10px] font-bold uppercase w-28 sm:w-auto shrink-0">Injury Classifier</span>
+          <div className="flex sm:flex-col items-center sm:items-start gap-2 sm:gap-0.5 min-w-0">
+            <p className="font-extrabold text-[var(--text-primary)] font-mono text-[11px]">XGBoost Multi-Class</p>
+            <span className="text-purple-400 text-[10px] font-semibold">{metrics ? `Weighted F1: ${metrics.injury.f1.toFixed(2)}` : '--'}</span>
+          </div>
         </div>
 
-        <div className="p-3 rounded-xl bg-[var(--bg-tertiary)] border border-[var(--border-color)] space-y-1">
-          <span className="text-[var(--text-tertiary)] text-[10px] font-bold uppercase">Recommender</span>
-          <p className="font-extrabold text-[var(--text-primary)] font-mono">{metrics ? metrics.recommender.encoder : 'MiniLM-L6'}</p>
-          <span className="text-[var(--accent-primary)] text-[10px] font-semibold block">
-            {metrics ? `${metrics.recommender.embedding_dim}-Dim · ${metrics.recommender.count} exercises` : '--'}
-          </span>
+        <div className="p-3 rounded-xl bg-[var(--bg-tertiary)] border border-[var(--border-color)] flex sm:flex-col items-center sm:items-start gap-3 sm:gap-1">
+          <span className="text-[var(--text-tertiary)] text-[10px] font-bold uppercase w-28 sm:w-auto shrink-0">Recommender</span>
+          <div className="flex sm:flex-col items-center sm:items-start gap-2 sm:gap-0.5 min-w-0">
+            <p className="font-extrabold text-[var(--text-primary)] font-mono text-[11px]">{metrics ? metrics.recommender.encoder : 'MiniLM-L6'}</p>
+            <span className="text-[var(--accent-primary)] text-[10px] font-semibold">{metrics ? `${metrics.recommender.embedding_dim}-Dim · ${metrics.recommender.count} exercises` : '--'}</span>
+          </div>
         </div>
       </div>
     </div>

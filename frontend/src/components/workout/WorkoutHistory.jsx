@@ -1,6 +1,7 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
-import { restoreWorkoutVersion } from '../../redux/slices/workoutSlice';
+import { restoreWorkoutVersion, persistWorkoutEdit, fetchWorkoutVersions } from '../../redux/slices/workoutSlice';
+import { store } from '../../redux/store';
 import { GitBranch, RotateCcw, Sparkles, CheckCircle2, History } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -8,12 +9,40 @@ export function WorkoutHistory() {
   const dispatch = useDispatch();
   const { versions, todayWorkout } = useSelector(state => state.workout);
 
+  // Seeds real version history from the server on a fresh mount (page reload,
+  // new device/session) — this-session edits already populate `versions`
+  // locally with full snapshots, so the reducer skips overwriting those.
+  useEffect(() => {
+    if (todayWorkout?._id) {
+      dispatch(fetchWorkoutVersions(todayWorkout._id));
+    }
+  }, [dispatch, todayWorkout?._id]);
+
   const handleRestoreVersion = (ver) => {
     if (!ver.snapshot) {
       toast.error(`No saved snapshot for v${ver.version} — can't restore.`);
       return;
     }
     dispatch(restoreWorkoutVersion(ver.version));
+
+    // Without this, the restore only lived in Redux/localStorage and got
+    // silently overwritten the next time fetchTodayWorkout ran against the
+    // backend's still-unrestored document (same class of bug persistWorkoutEdit
+    // already fixed for AI swaps/reshuffles).
+    const restoredWorkout = store.getState().workout.todayWorkout;
+    if (restoredWorkout?._id) {
+      dispatch(persistWorkoutEdit({
+        id: restoredWorkout._id,
+        exercises: restoredWorkout.exercises,
+        title: restoredWorkout.title,
+        splitFocus: restoredWorkout.splitFocus,
+        durationTarget: restoredWorkout.durationTarget,
+        versionLabel: `Restored to v${ver.version}`,
+        versionReason: 'user_override',
+        versionExplanation: `User rolled back to version ${ver.version}: ${ver.changes}`
+      }));
+    }
+
     toast.success(`⏪ Restored Workout Plan to Version v${ver.version}!`);
   };
 

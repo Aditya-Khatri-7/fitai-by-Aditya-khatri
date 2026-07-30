@@ -224,12 +224,42 @@ function extractPerSlotDiet(clean) {
   return result;
 }
 
+const QUESTION_WORDS = ['what', 'how', 'do i', 'is there', 'show me', 'tell me', 'whats', "what's"];
+
 /**
  * Classifies + resolves a message locally. Returns null if the request is too
  * ambiguous to safely resolve without an LLM (caller should escalate or ask).
+ *
+ * `appState` (workout/meals for today) lets the most common status QUESTIONS —
+ * "what's my workout today", "what am I eating today" — get answered from real
+ * data with zero LLM calls, instead of every question escalating to a paid
+ * provider just because it isn't an action request.
  */
-export function classifyLocally(message) {
+export function classifyLocally(message, appState = {}) {
   const clean = (message || '').toLowerCase().replace(/[^a-z0-9\s-]/g, ' ');
+  const isQuestion = QUESTION_WORDS.some(w => clean.includes(w));
+
+  // INFORMATIONAL Q&A — answered directly from real app state, checked before the
+  // action-intent branches below so a plain question never gets misread as a
+  // request to change something.
+  if (isQuestion && anyWordHit(clean, ['workout', 'workouts', 'train', 'training', 'exercise', 'exercises']).length > 0) {
+    const workout = appState.workout;
+    if (workout) {
+      return {
+        replyText: `Today's workout is "${workout.title}"${workout.splitFocus ? ` — focus: ${workout.splitFocus}` : ''}.`,
+        proposedAction: null
+      };
+    }
+    return { replyText: "You don't have a workout scheduled for today yet — want me to generate one?", proposedAction: null };
+  }
+  if (isQuestion && anyWordHit(clean, ['meal', 'meals', 'eat', 'eating', 'food', 'lunch', 'breakfast', 'dinner', 'snack', 'snacks']).length > 0) {
+    const meals = appState.meals || [];
+    if (meals.length) {
+      const summary = meals.map(m => `${m.type}: ${m.name} (${m.totalCalories} kcal)`).join('; ');
+      return { replyText: `Today's meal plan — ${summary}.`, proposedAction: null };
+    }
+    return { replyText: "You don't have a meal plan logged for today yet.", proposedAction: null };
+  }
 
   // THEME
   if (wordBoundary(clean, 'theme') || wordBoundary(clean, 'mood') || wordBoundary(clean, 'vibe') || wordBoundary(clean, 'style')) {

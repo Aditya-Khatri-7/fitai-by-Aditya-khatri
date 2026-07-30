@@ -75,8 +75,9 @@ export const VerifyResetOtp = () => {
       toast.success('OTP validated successfully.');
       navigate(`/reset-password?email=${encodeURIComponent(email)}&otp=${encodeURIComponent(code)}`);
     } catch (error) {
-      toast.success('OTP Verified!');
-      navigate(`/reset-password?email=${encodeURIComponent(email)}&otp=${encodeURIComponent(code)}`);
+      // Don't advance to the reset-password screen on a wrong/expired code —
+      // that previously let anyone through regardless of what they typed.
+      toast.error(error.response?.data?.message || 'Invalid or expired OTP. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -90,8 +91,7 @@ export const VerifyResetOtp = () => {
       toast.success('New OTP code sent!');
       setTimer(60);
     } catch (error) {
-      toast.success('New OTP dispatched to email.');
-      setTimer(60);
+      toast.error(error.response?.data?.message || 'Failed to resend code. Please try again.');
     } finally {
       setResending(false);
     }

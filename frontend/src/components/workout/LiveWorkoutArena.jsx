@@ -1,6 +1,9 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
 import { addXp, setVictoryDrop } from '../../redux/slices/gamificationSlice';
+import { updateWorkoutStatusRemote, fetchStreakState } from '../../redux/slices/workoutSlice';
+import { toSteps } from '../../utils/exerciseSteps';
+import { useTheme } from '../../context/ThemeContext';
 import { WorkoutVictoryModal } from './WorkoutVictoryModal';
 import {
   Play,
@@ -11,12 +14,14 @@ import {
   Zap,
   ShieldAlert,
   ChevronRight,
+  ChevronLeft,
   Trophy,
   Dumbbell,
   Timer,
   Volume2,
   VolumeX,
-  X
+  X,
+  ListOrdered
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -55,6 +60,8 @@ export function LiveWorkoutArena({ onClose }) {
   const dispatch = useDispatch();
   const { todayWorkout } = useSelector(state => state.workout);
   const { soundEnabled } = useSelector(state => state.gamification);
+  const { mobileMode, isNarrowViewport } = useTheme();
+  const isCompact = mobileMode || isNarrowViewport;
 
   const exercises = todayWorkout?.exercises || [
     { name: 'Barbell Bench Press', targetSets: 4, targetReps: '8-10', defaultWeight: 75, muscle: 'Chest' },
@@ -69,6 +76,7 @@ export function LiveWorkoutArena({ onClose }) {
   const [combo, setCombo] = useState(0);
   const [totalXpEarned, setTotalXpEarned] = useState(0);
   const [totalVolume, setTotalVolume] = useState(0);
+  const [totalReps, setTotalReps] = useState(0);
 
   // Rest Timer State
   const [restTimeLeft, setRestTimeLeft] = useState(0);
@@ -76,17 +84,18 @@ export function LiveWorkoutArena({ onClose }) {
 
   const currentExercise = exercises[activeExIdx] || exercises[0];
 
-  // Rest Timer Countdown Interval
+  // Rest Timer Countdown Interval — auto-loops into the next set's timer
+  // instead of just stopping at 0, so rest keeps flowing between sets without
+  // needing a manual "Start Rest" tap every time.
   useEffect(() => {
     let timer = null;
     if (isRestTimerActive && restTimeLeft > 0) {
       timer = setInterval(() => {
         setRestTimeLeft(prev => {
           if (prev <= 1) {
-            setIsRestTimerActive(false);
             if (soundEnabled) playSoundChime('timer_done');
             toast.success('REST TIME UP! Next Set Ready 🔥', { icon: '⏰' });
-            return 0;
+            return 60;
           }
           return prev - 1;
         });
@@ -94,6 +103,30 @@ export function LiveWorkoutArena({ onClose }) {
     }
     return () => clearInterval(timer);
   }, [isRestTimerActive, restTimeLeft, soundEnabled]);
+
+  // Auto-advance to the next exercise once every set of the current one is
+  // checked off, instead of leaving the stepper stuck on "1 / N" after
+  // finishing all sets. `autoAdvancedRef` stops it from repeatedly shoving the
+  // user forward if they manually navigate back to an already-completed one.
+  const autoAdvancedRef = useRef(new Set());
+  const allSetsDone = useMemo(() => {
+    const totalSets = currentExercise.targetSets || 4;
+    return Array.from({ length: totalSets }).every((_, i) => completedSets[`${activeExIdx}_${i}`]);
+  }, [completedSets, activeExIdx, currentExercise.targetSets]);
+
+  useEffect(() => {
+    if (!allSetsDone) return;
+    if (activeExIdx >= exercises.length - 1) return;
+    if (autoAdvancedRef.current.has(activeExIdx)) return;
+    autoAdvancedRef.current.add(activeExIdx);
+
+    const nextExercise = exercises[activeExIdx + 1];
+    const timeout = setTimeout(() => {
+      setActiveExIdx(activeExIdx + 1);
+      toast.success(`Exercise complete! Moving to ${nextExercise.name} 💪`);
+    }, 900);
+    return () => clearTimeout(timeout);
+  }, [allSetsDone, activeExIdx, exercises]);
 
   const handleToggleSet = (exIdx, setIdx) => {
     const key = `${exIdx}_${setIdx}`;
@@ -108,6 +141,7 @@ export function LiveWorkoutArena({ onClose }) {
       const w = weights[key] || currentExercise.defaultWeight || 60;
       const r = reps[key] || 10;
       setTotalVolume(prev => prev + w * r);
+      setTotalReps(prev => prev + r);
 
       setCompletedSets(prev => ({ ...prev, [key]: true }));
 
@@ -123,7 +157,7 @@ export function LiveWorkoutArena({ onClose }) {
     }
   };
 
-  const handleFinishWorkout = () => {
+  const handleFinishWorkout = async () => {
     const finalXp = totalXpEarned + 200; // Workout completion bonus
     dispatch(addXp(finalXp));
     dispatch(setVictoryDrop({
@@ -132,6 +166,18 @@ export function LiveWorkoutArena({ onClose }) {
       maxCombo: Math.max(combo, 1),
       totalVolume: totalVolume || 3850
     }));
+
+    // This is the write that actually moves the streak — without it, finishing a
+    // live session never touches the backend workout status, so applyStreakUpdate
+    // (triggered server-side only on status:'completed') never fires.
+    if (todayWorkout?._id) {
+      const result = await dispatch(updateWorkoutStatusRemote({ id: todayWorkout._id, status: 'completed', totalReps }));
+      if (updateWorkoutStatusRemote.fulfilled.match(result)) {
+        dispatch(fetchStreakState());
+      } else {
+        toast.error('Workout XP saved, but streak update failed — try refreshing.');
+      }
+    }
   };
 
   const isBossFightSet = (currentExercise.defaultWeight || 60) >= 80;
@@ -140,13 +186,13 @@ export function LiveWorkoutArena({ onClose }) {
     <div className="fixed inset-0 z-50 bg-slate-950/95 backdrop-blur-xl text-slate-100 flex flex-col p-4 sm:p-6 overflow-y-auto animate-in fade-in duration-300">
       
       {/* Top Header Control Bar */}
-      <div className="flex items-center justify-between pb-4 border-b border-slate-800">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-[var(--accent-glow)] text-[var(--accent-primary)] border border-[var(--border-color)] flex items-center justify-center font-extrabold text-lg">
+      <div className={`flex ${isCompact ? 'flex-col gap-3' : 'items-center justify-between'} pb-4 border-b border-slate-800`}>
+        <div className="flex items-center gap-3 min-w-0">
+          <div className="w-10 h-10 rounded-xl bg-[var(--accent-glow)] text-[var(--accent-primary)] border border-[var(--border-color)] flex items-center justify-center font-extrabold text-lg shrink-0">
             <Dumbbell className="w-5 h-5" />
           </div>
-          <div>
-            <div className="flex items-center gap-2">
+          <div className="min-w-0">
+            <div className="flex items-center gap-2 flex-wrap">
               <span className="px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 font-extrabold text-[10px] uppercase tracking-wider">
                 LIVE GAMIFIED ARENA
               </span>
@@ -156,25 +202,25 @@ export function LiveWorkoutArena({ onClose }) {
                 </span>
               )}
             </div>
-            <h2 className="text-xl font-extrabold text-white">{todayWorkout?.title || 'Live Workout Session'}</h2>
+            <h2 className="text-xl font-extrabold text-white truncate">{todayWorkout?.title || 'Live Workout Session'}</h2>
           </div>
         </div>
 
         {/* Live HUD Stats */}
-        <div className="flex items-center gap-3">
-          <div className="px-3.5 py-1.5 rounded-xl bg-slate-900 border border-slate-800 flex items-center gap-2">
-            <Flame className="w-4 h-4 text-rose-500" />
-            <span className="text-xs font-mono font-extrabold text-rose-400">{combo}x Combo</span>
+        <div className={`flex items-center gap-2 ${isCompact ? 'justify-between' : 'gap-3'}`}>
+          <div className="px-3 py-1.5 rounded-xl bg-slate-900 border border-slate-800 flex items-center gap-2">
+            <Flame className="w-4 h-4 text-rose-500 shrink-0" />
+            <span className="text-xs font-mono font-extrabold text-rose-400 whitespace-nowrap">{combo}x Combo</span>
           </div>
 
-          <div className="px-3.5 py-1.5 rounded-xl bg-slate-900 border border-slate-800 flex items-center gap-2">
-            <Zap className="w-4 h-4 text-amber-400" />
-            <span className="text-xs font-mono font-extrabold text-amber-400">+{totalXpEarned} XP</span>
+          <div className="px-3 py-1.5 rounded-xl bg-slate-900 border border-slate-800 flex items-center gap-2">
+            <Zap className="w-4 h-4 text-amber-400 shrink-0" />
+            <span className="text-xs font-mono font-extrabold text-amber-400 whitespace-nowrap">+{totalXpEarned} XP</span>
           </div>
 
           <button
             onClick={onClose}
-            className="p-2.5 rounded-xl bg-slate-900 border border-slate-800 hover:bg-slate-800 text-slate-400 hover:text-white transition-colors"
+            className="p-2.5 rounded-xl bg-slate-900 border border-slate-800 hover:bg-slate-800 text-slate-400 hover:text-white transition-colors shrink-0"
           >
             <X className="w-5 h-5" />
           </button>
@@ -182,37 +228,47 @@ export function LiveWorkoutArena({ onClose }) {
       </div>
 
       {/* Main Content Layout */}
-      <div className="flex-1 grid grid-cols-1 lg:grid-cols-3 gap-6 py-6">
+      <div className={`flex-1 grid grid-cols-1 gap-6 py-6 ${isCompact ? '' : 'lg:grid-cols-3'}`}>
         
         {/* Left 2 Cols: Exercise Tracker & Interactive Set Matrix */}
-        <div className="lg:col-span-2 space-y-6">
-          
-          {/* Exercise Selector Carousel */}
-          <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-none">
-            {exercises.map((ex, idx) => {
-              const isActive = idx === activeExIdx;
-              return (
+        <div className={`space-y-6 ${isCompact ? '' : 'lg:col-span-2'}`}>
+
+          {/* Exercise Stepper — prev/next through one exercise at a time instead
+              of a horizontal-scroll strip that gets cut off at the screen edge
+              on mobile. */}
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setActiveExIdx(i => Math.max(0, i - 1))}
+              disabled={activeExIdx === 0}
+              className="p-2.5 rounded-xl bg-slate-900/60 border border-slate-800 text-slate-400 hover:text-white hover:border-slate-700 disabled:opacity-30 disabled:cursor-not-allowed transition-all shrink-0"
+            >
+              <ChevronLeft className="w-4 h-4" />
+            </button>
+
+            <div className="flex-1 flex items-center justify-center gap-1.5">
+              {exercises.map((_, idx) => (
                 <button
                   key={idx}
                   onClick={() => setActiveExIdx(idx)}
-                  className={`px-4 py-3 rounded-2xl border text-left transition-all flex-shrink-0 flex items-center gap-3 ${
-                    isActive
-                      ? 'bg-[var(--accent-glow)] border-[var(--accent-primary)] ring-2 ring-[var(--accent-primary)]/40 text-white'
-                      : 'bg-slate-900/60 border-slate-800 hover:border-slate-700 text-slate-400'
+                  aria-label={`Go to exercise ${idx + 1}`}
+                  className={`h-1.5 rounded-full transition-all ${
+                    idx === activeExIdx ? 'w-6 bg-[var(--accent-primary)]' : 'w-1.5 bg-slate-800 hover:bg-slate-700'
                   }`}
-                >
-                  <div className={`w-7 h-7 rounded-lg font-mono font-bold text-xs flex items-center justify-center ${
-                    isActive ? 'bg-[var(--accent-primary)] text-slate-950' : 'bg-slate-800 text-slate-300'
-                  }`}>
-                    {idx + 1}
-                  </div>
-                  <div>
-                    <h4 className="text-xs font-extrabold text-slate-200">{ex.name}</h4>
-                    <span className="text-[10px] text-slate-400 font-semibold">{ex.targetSets} Sets • {ex.targetReps} reps</span>
-                  </div>
-                </button>
-              );
-            })}
+                />
+              ))}
+            </div>
+
+            <span className="text-[10px] font-bold text-slate-400 font-mono shrink-0">
+              {activeExIdx + 1} / {exercises.length}
+            </span>
+
+            <button
+              onClick={() => setActiveExIdx(i => Math.min(exercises.length - 1, i + 1))}
+              disabled={activeExIdx === exercises.length - 1}
+              className="p-2.5 rounded-xl bg-slate-900/60 border border-slate-800 text-slate-400 hover:text-white hover:border-slate-700 disabled:opacity-30 disabled:cursor-not-allowed transition-all shrink-0"
+            >
+              <ChevronRight className="w-4 h-4" />
+            </button>
           </div>
 
           {/* Current Active Exercise Card */}
@@ -239,6 +295,24 @@ export function LiveWorkoutArena({ onClose }) {
                 <p className="text-xs text-slate-400 mt-1">Recommended Tempo: 3s Eccentric • 1s Pause • Explosive Concentric</p>
               </div>
             </div>
+
+            {/* Real step-by-step instructions — previously entirely absent from the
+                live session, forcing users to guess form mid-set. */}
+            {toSteps(currentExercise.instructions).length > 0 && (
+              <div className="p-4 rounded-2xl bg-slate-950/60 border border-slate-800 space-y-2">
+                <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+                  <ListOrdered className="w-3.5 h-3.5 text-[var(--accent-primary)]" /> How To Perform
+                </span>
+                <ol className="space-y-1.5 text-xs">
+                  {toSteps(currentExercise.instructions).map((step, i) => (
+                    <li key={i} className="flex gap-2 text-slate-300">
+                      <span className="w-4 h-4 rounded-full bg-slate-800 text-[var(--accent-primary)] font-bold flex items-center justify-center text-[9px] shrink-0 mt-0.5">{i + 1}</span>
+                      <span>{step}</span>
+                    </li>
+                  ))}
+                </ol>
+              </div>
+            )}
 
             {/* Set Tracking Interactive Table */}
             <div className="space-y-3">
@@ -335,8 +409,9 @@ export function LiveWorkoutArena({ onClose }) {
         {/* Right 1 Col: Rest Timer & Session Finish Sidebar */}
         <div className="space-y-6">
           
-          {/* Rest Countdown Timer Card */}
-          <div className="p-6 rounded-3xl bg-slate-900/90 border border-slate-800 shadow-2xl text-center space-y-4">
+          {/* Rest Countdown Timer Card — compact horizontal layout on mobile
+              instead of a large circular dial that ate most of the screen. */}
+          <div className={`rounded-3xl bg-slate-900/90 border border-slate-800 shadow-2xl space-y-3 ${isCompact ? 'p-4' : 'p-6 text-center space-y-4'}`}>
             <div className="flex items-center justify-between text-xs font-bold text-slate-400">
               <span className="flex items-center gap-1.5">
                 <Timer className="w-4 h-4 text-[var(--accent-primary)]" /> SET REST TIMER
@@ -344,33 +419,61 @@ export function LiveWorkoutArena({ onClose }) {
               <span className="font-mono text-[var(--accent-primary)]">60s Standard</span>
             </div>
 
-            {/* Circular Rest Time Visualizer */}
-            <div className="relative w-36 h-36 mx-auto flex items-center justify-center">
-              <div className="w-full h-full rounded-full border-4 border-slate-800 flex items-center justify-center">
-                <span className="text-4xl font-extrabold font-mono text-white">
-                  {restTimeLeft}s
-                </span>
+            {isCompact ? (
+              <div className="flex items-center justify-between gap-3">
+                <span className="text-3xl font-extrabold font-mono text-white">{restTimeLeft}s</span>
+                <div className="flex gap-2 shrink-0">
+                  <button
+                    onClick={() => {
+                      if (!isRestTimerActive && restTimeLeft <= 0) setRestTimeLeft(60);
+                      setIsRestTimerActive(!isRestTimerActive);
+                    }}
+                    className="p-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-white"
+                  >
+                    {isRestTimerActive ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
+                  </button>
+                  <button
+                    onClick={() => { setRestTimeLeft(60); setIsRestTimerActive(false); }}
+                    className="p-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white"
+                  >
+                    <RotateCcw className="w-4 h-4" />
+                  </button>
+                </div>
               </div>
-            </div>
+            ) : (
+              <>
+                {/* Circular Rest Time Visualizer */}
+                <div className="relative w-36 h-36 mx-auto flex items-center justify-center">
+                  <div className="w-full h-full rounded-full border-4 border-slate-800 flex items-center justify-center">
+                    <span className="text-4xl font-extrabold font-mono text-white">
+                      {restTimeLeft}s
+                    </span>
+                  </div>
+                </div>
 
-            <div className="flex gap-2">
-              <button
-                onClick={() => setIsRestTimerActive(!isRestTimerActive)}
-                className="flex-1 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 font-bold text-xs text-white flex items-center justify-center gap-1.5"
-              >
-                {isRestTimerActive ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
-                <span>{isRestTimerActive ? 'Pause' : 'Start Rest'}</span>
-              </button>
-              <button
-                onClick={() => {
-                  setRestTimeLeft(60);
-                  setIsRestTimerActive(false);
-                }}
-                className="p-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white"
-              >
-                <RotateCcw className="w-4 h-4" />
-              </button>
-            </div>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => {
+                      if (!isRestTimerActive && restTimeLeft <= 0) setRestTimeLeft(60);
+                      setIsRestTimerActive(!isRestTimerActive);
+                    }}
+                    className="flex-1 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 font-bold text-xs text-white flex items-center justify-center gap-1.5"
+                  >
+                    {isRestTimerActive ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
+                    <span>{isRestTimerActive ? 'Pause' : 'Start Rest'}</span>
+                  </button>
+                  <button
+                    onClick={() => {
+                      setRestTimeLeft(60);
+                      setIsRestTimerActive(false);
+                    }}
+                    className="p-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white"
+                  >
+                    <RotateCcw className="w-4 h-4" />
+                  </button>
+                </div>
+              </>
+            )}
           </div>
 
           {/* Session Summary Card */}
@@ -401,7 +504,7 @@ export function LiveWorkoutArena({ onClose }) {
 
       </div>
 
-      <WorkoutVictoryModal />
+      <WorkoutVictoryModal onClose={onClose} />
     </div>
   );
 }

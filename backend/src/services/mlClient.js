@@ -1,5 +1,5 @@
 import axios from 'axios';
-import { fallbackRecoveryScore, fallbackInjuryRisk } from '../utils/fallbacks.js';
+import { fallbackRecoveryScore, fallbackInjuryRisk, fallbackBodyFat, fallbackDiabetesRisk, fallbackCardioRisk } from '../utils/fallbacks.js';
 
 const ML_SERVICE_URL = process.env.ML_SERVICE_URL || 'http://localhost:8001';
 
@@ -55,6 +55,132 @@ export async function getMLMetrics() {
   } catch (error) {
     console.warn(`[mlClient Warning] Metrics fetch failed (${error.message}).`);
     return null;
+  }
+}
+
+export async function predictBodyFat(measurements) {
+  try {
+    const response = await mlApi.post('/predict/bodyfat', measurements);
+    return response.data;
+  } catch (error) {
+    console.warn(`[mlClient Warning] Body fat ML call failed (${error.message}). Returning rule fallback.`);
+    return fallbackBodyFat(measurements);
+  }
+}
+
+export async function predictDiabetesRisk(screening) {
+  try {
+    const response = await mlApi.post('/predict/diabetes-risk', screening);
+    return response.data;
+  } catch (error) {
+    console.warn(`[mlClient Warning] Diabetes risk ML call failed (${error.message}). Returning rule fallback.`);
+    return fallbackDiabetesRisk(screening);
+  }
+}
+
+export async function predictCardioRisk(screening) {
+  try {
+    const response = await mlApi.post('/predict/cardio-risk', screening);
+    return response.data;
+  } catch (error) {
+    console.warn(`[mlClient Warning] Cardio risk ML call failed (${error.message}). Returning rule fallback.`);
+    return fallbackCardioRisk(screening);
+  }
+}
+
+export async function predictYogaPose(imageBase64) {
+  try {
+    const response = await mlApi.post('/predict/yoga-pose', { image_base64: imageBase64 });
+    return response.data;
+  } catch (error) {
+    console.warn(`[mlClient Warning] Yoga pose ML call failed (${error.message}).`);
+    // No honest rule-based fallback exists for image classification — surface
+    // unavailability rather than fabricating a guess.
+    return { error: 'Yoga pose model temporarily unavailable.' };
+  }
+}
+
+export async function predictMealPhoto(imageBase64) {
+  try {
+    const response = await mlApi.post('/predict/meal-photo', { image_base64: imageBase64 });
+    return response.data;
+  } catch (error) {
+    console.warn(`[mlClient Warning] Meal photo ML call failed (${error.message}).`);
+    return { error: 'Meal photo model temporarily unavailable.' };
+  }
+}
+
+export async function recommendMeals(query) {
+  try {
+    const response = await mlApi.post('/recommend/meals', query);
+    return response.data.recommendations || [];
+  } catch (error) {
+    console.warn(`[mlClient Warning] Meal Recommender ML call failed (${error.message}). Caller should fall back to indianMealTemplates.`);
+    return null;
+  }
+}
+
+export async function recommendMeditation(query) {
+  try {
+    const response = await mlApi.post('/recommend/meditation', query);
+    return response.data.recommendations || [];
+  } catch (error) {
+    console.warn(`[mlClient Warning] Meditation Recommender ML call failed (${error.message}).`);
+    return [];
+  }
+}
+
+// Pydantic 422s carry `detail` as an array of per-field error objects rather
+// than a string — collapse that into one readable message instead of leaking
+// the raw structure or masking it as a downtime error.
+function extractClientErrorMessage(error) {
+  const detail = error.response?.data?.detail;
+  if (typeof detail === 'string') return detail;
+  if (Array.isArray(detail)) return 'Invalid input: missing or malformed required fields.';
+  return error.message;
+}
+
+export async function predictStressLevel(sensorReadings) {
+  try {
+    const response = await mlApi.post('/predict/stress-level', sensorReadings);
+    return response.data;
+  } catch (error) {
+    if (error.response && error.response.status < 500) {
+      // Client sent a bad request — surface the real 4xx, don't mask it as
+      // service downtime (the model is fine, the input wasn't).
+      const clientError = new Error(extractClientErrorMessage(error));
+      clientError.status = error.response.status;
+      throw clientError;
+    }
+    console.warn(`[mlClient Warning] Stress level ML call failed (${error.message}).`);
+    // No honest rule-based fallback exists for the skin-sensor stress model —
+    // surface unavailability rather than guessing a class.
+    return { error: 'Stress level model temporarily unavailable.' };
+  }
+}
+
+export async function listActivitySamples() {
+  try {
+    const response = await mlApi.get('/demo/activity-samples');
+    return response.data;
+  } catch (error) {
+    console.warn(`[mlClient Warning] Activity sample list fetch failed (${error.message}).`);
+    return { samples: [], feature_count: 0 };
+  }
+}
+
+export async function classifyActivitySample(sampleIndex) {
+  try {
+    const response = await mlApi.post('/demo/classify-activity-sample', { sample_index: sampleIndex });
+    return response.data;
+  } catch (error) {
+    if (error.response && error.response.status < 500) {
+      const clientError = new Error(extractClientErrorMessage(error));
+      clientError.status = error.response.status;
+      throw clientError;
+    }
+    console.warn(`[mlClient Warning] Activity classification failed (${error.message}).`);
+    return { error: 'Activity recognition model temporarily unavailable.' };
   }
 }
 

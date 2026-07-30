@@ -5,7 +5,9 @@ import * as THREE from 'three';
 import { CharacterRenderer } from '../../three/CharacterRenderer';
 import { AutoFramingCamera } from '../../three/AutoFramingCamera';
 import { use3DThemeTokens } from '../../three/use3DThemeTokens';
-import { getExerciseSlug, getExerciseMetadata } from '../../utils/exerciseSlugMap';
+import { getExerciseSlug, getExerciseMetadata, hasRealAnimation } from '../../utils/exerciseSlugMap';
+import { toSteps } from '../../utils/exerciseSteps';
+import { useSpeech } from '../../hooks/useSpeech';
 import {
   Play,
   Pause,
@@ -19,7 +21,8 @@ import {
   Activity,
   Layers,
   Repeat,
-  Eye
+  Eye,
+  ListOrdered
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -65,27 +68,28 @@ export function Exercise3DDemo({ exercise, isOpen, onClose }) {
   const [speed, setSpeed] = useState(1.0);
   const [cameraPreset, setCameraPreset] = useState('front'); // 'front' | 'side' | 'rear' | 'top'
   const [isMuted, setIsMuted] = useState(false);
-  const [animationAvailable, setAnimationAvailable] = useState(true);
 
   const themeTokens = use3DThemeTokens();
   const modelRef = useRef();
   const controlsRef = useRef();
+  const { speak: speakUtterance } = useSpeech();
 
   if (!isOpen || !exercise) return null;
 
   const slug = getExerciseSlug(exercise.name);
+  const animationAvailable = hasRealAnimation(exercise.name);
   const metadata = getExerciseMetadata(exercise.name);
+  const steps = toSteps(exercise.instructions);
+
+  // Prefer the exercise's own real muscleGroups (from the ML recommender / user's
+  // actual workout data) over the generic slug-catalog placeholder text, which only
+  // covers ~14 exercises out of the ~2,900 the recommender can return.
+  const primaryMuscles = exercise.muscleGroups?.primary?.length ? exercise.muscleGroups.primary : metadata.primaryMuscles;
+  const secondaryMuscles = exercise.muscleGroups?.secondary?.length ? exercise.muscleGroups.secondary : metadata.secondaryMuscles;
 
   const speakGuidance = () => {
-    if ('speechSynthesis' in window) {
-      window.speechSynthesis.cancel();
-      const text = `${exercise.name}. ${metadata.executionTip} AI guidance: ${metadata.aiGuidance}`;
-      const utterance = new SpeechSynthesisUtterance(text);
-      utterance.rate = 1.0;
-      utterance.pitch = 1.05;
-      window.speechSynthesis.speak(utterance);
-      toast.success("Playing AI Voice Guidance");
-    }
+    const text = `${exercise.name}. ${metadata.executionTip} AI guidance: ${metadata.aiGuidance}`;
+    if (speakUtterance(text)) toast.success("Playing AI Voice Guidance");
   };
 
   return (
@@ -254,24 +258,26 @@ export function Exercise3DDemo({ exercise, isOpen, onClose }) {
                 <div>
                   <span className="text-[10px] text-[var(--text-secondary)] font-semibold block">Primary:</span>
                   <div className="flex flex-wrap gap-1 mt-0.5">
-                    {metadata.primaryMuscles.map((m, i) => (
-                      <span key={i} className="px-2 py-0.5 rounded-md bg-[var(--accent-glow)] text-[var(--accent-primary)] font-bold text-[10px] border border-[var(--border-color)]">
+                    {primaryMuscles.map((m, i) => (
+                      <span key={i} className="px-2 py-0.5 rounded-md bg-[var(--accent-glow)] text-[var(--accent-primary)] font-bold text-[10px] border border-[var(--border-color)] capitalize">
                         {m}
                       </span>
                     ))}
                   </div>
                 </div>
 
-                <div>
-                  <span className="text-[10px] text-[var(--text-secondary)] font-semibold block">Secondary / Stabilizers:</span>
-                  <div className="flex flex-wrap gap-1 mt-0.5">
-                    {metadata.secondaryMuscles.map((m, i) => (
-                      <span key={i} className="px-2 py-0.5 rounded-md bg-[var(--bg-secondary)] text-[var(--text-secondary)] font-medium text-[10px] border border-[var(--border-color)]">
-                        {m}
-                      </span>
-                    ))}
+                {secondaryMuscles.length > 0 && (
+                  <div>
+                    <span className="text-[10px] text-[var(--text-secondary)] font-semibold block">Secondary / Stabilizers:</span>
+                    <div className="flex flex-wrap gap-1 mt-0.5">
+                      {secondaryMuscles.map((m, i) => (
+                        <span key={i} className="px-2 py-0.5 rounded-md bg-[var(--bg-secondary)] text-[var(--text-secondary)] font-medium text-[10px] border border-[var(--border-color)] capitalize">
+                          {m}
+                        </span>
+                      ))}
+                    </div>
                   </div>
-                </div>
+                )}
               </div>
             </div>
 
@@ -308,6 +314,27 @@ export function Exercise3DDemo({ exercise, isOpen, onClose }) {
           </div>
 
         </div>
+
+        {/* Real step-by-step instructions — the fallback the user actually gets when
+            no specific rigged animation exists for this exercise (the vast majority
+            of the ~2,900 real recommender exercises), instead of just a generic
+            idle/wave gesture with no other guidance. */}
+        {steps.length > 0 && (
+          <div className="p-4 rounded-2xl bg-[var(--bg-tertiary)] border border-[var(--border-color)] space-y-2">
+            <span className="text-[10px] font-bold text-[var(--text-tertiary)] uppercase tracking-wider flex items-center gap-1.5">
+              <ListOrdered className="w-3.5 h-3.5 text-[var(--accent-primary)]" />
+              {animationAvailable ? 'HOW TO PERFORM' : 'HOW TO PERFORM (no 3D animation for this exercise yet — real steps below)'}
+            </span>
+            <ol className="space-y-1.5 text-xs">
+              {steps.map((step, i) => (
+                <li key={i} className="flex gap-2.5 text-[var(--text-secondary)]">
+                  <span className="w-5 h-5 rounded-full bg-[var(--accent-glow)] text-[var(--accent-primary)] font-extrabold flex items-center justify-center text-[10px] shrink-0 mt-0.5">{i + 1}</span>
+                  <span className="leading-relaxed">{step}</span>
+                </li>
+              ))}
+            </ol>
+          </div>
+        )}
 
       </div>
     </div>

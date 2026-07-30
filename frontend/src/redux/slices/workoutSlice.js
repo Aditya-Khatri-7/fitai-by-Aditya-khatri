@@ -1,5 +1,6 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 import api from '../../services/api';
+import { logout } from './authSlice';
 
 // Static preset templates a user can manually pick from — a reference catalog like
 // exercises.js/foods.js, not per-user fixture data, so it's fine to keep as-is.
@@ -93,6 +94,15 @@ export const generateWorkout = createAsyncThunk('workout/generate', async (overr
   }
 });
 
+export const generateYogaWorkout = createAsyncThunk('workout/generateYoga', async (questionnaire, { rejectWithValue }) => {
+  try {
+    const { data } = await api.post('/workouts/generate-yoga', questionnaire || {});
+    return data;
+  } catch (err) {
+    return rejectWithValue(err.response?.data?.message || 'Failed to generate yoga session');
+  }
+});
+
 export const fetchWorkoutRange = createAsyncThunk('workout/fetchRange', async ({ from, to }, { rejectWithValue }) => {
   try {
     const { data } = await api.get('/workouts', { params: { from, to } });
@@ -111,12 +121,36 @@ export const generateWeekOfWorkouts = createAsyncThunk('workout/generateWeek', a
   }
 });
 
-export const updateWorkoutStatusRemote = createAsyncThunk('workout/updateStatus', async ({ id, status }, { rejectWithValue }) => {
+export const updateWorkoutStatusRemote = createAsyncThunk('workout/updateStatus', async ({ id, status, totalReps }, { rejectWithValue }) => {
   try {
-    const { data } = await api.patch(`/workouts/${id}/status`, { status });
+    const { data } = await api.patch(`/workouts/${id}/status`, { status, totalReps });
     return data;
   } catch (err) {
     return rejectWithValue(err.response?.data?.message || 'Failed to update workout status');
+  }
+});
+
+// Persists a local edit (swap, reshuffle) to the real backend Workout document —
+// without this, edits only lived in Redux + localStorage and were silently
+// discarded the next time fetchTodayWorkout ran.
+export const persistWorkoutEdit = createAsyncThunk('workout/persistEdit', async ({ id, ...edit }, { rejectWithValue }) => {
+  try {
+    const { data } = await api.patch(`/workouts/${id}`, edit);
+    return data;
+  } catch (err) {
+    return rejectWithValue(err.response?.data?.message || 'Failed to save workout edit');
+  }
+});
+
+// Loads durable server-side version history for a workout — backs the same
+// "Restore" flow that previously only lived in Redux/localStorage and lost its
+// history on a fresh session or device.
+export const fetchWorkoutVersions = createAsyncThunk('workout/fetchVersions', async (workoutId, { rejectWithValue }) => {
+  try {
+    const { data } = await api.get(`/workouts/${workoutId}/versions`);
+    return data;
+  } catch (err) {
+    return rejectWithValue(err.response?.data?.message || 'Failed to load workout version history');
   }
 });
 
@@ -196,7 +230,18 @@ const workoutSlice = createSlice({
       const targetVersion = action.payload;
       const ver = state.versions.find(v => v.version === targetVersion);
       if (!ver || !ver.snapshot) return;
-      state.todayWorkout = { ...ver.snapshot, status: 'planned' };
+      // A restore changes the CONTENT of the same workout document, not its
+      // identity — server-sourced snapshots don't carry _id/userId/date, so
+      // spreading the snapshot over a blank object silently dropped `_id` and
+      // broke the persist-to-backend call (and anything else keyed on it).
+      state.todayWorkout = {
+        ...(state.todayWorkout || {}),
+        ...ver.snapshot,
+        _id: state.todayWorkout?._id,
+        userId: state.todayWorkout?.userId,
+        date: state.todayWorkout?.date,
+        status: 'planned'
+      };
       state.activeVersion = ver.version;
       try {
         localStorage.setItem('fitai_today_workout', JSON.stringify(state.todayWorkout));
@@ -373,6 +418,21 @@ const workoutSlice = createSlice({
         state.error = action.payload;
       })
 
+      .addCase(generateYogaWorkout.pending, (state) => { state.loading = true; })
+      .addCase(generateYogaWorkout.fulfilled, (state, action) => {
+        state.loading = false;
+        upsertIntoRange(state.workoutRange, action.payload);
+        if (isSameDay(action.payload.date)) {
+          state.todayWorkout = action.payload;
+          state.activeVersion = action.payload.version;
+          seedBaselineVersion(state, action.payload);
+        }
+      })
+      .addCase(generateYogaWorkout.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload;
+      })
+
       .addCase(fetchWorkoutRange.fulfilled, (state, action) => {
         state.workoutRange = action.payload;
       })
@@ -388,13 +448,42 @@ const workoutSlice = createSlice({
         state.workoutRange = state.workoutRange.map(w => w._id === action.payload._id ? action.payload : w);
       })
 
+      .addCase(persistWorkoutEdit.fulfilled, (state, action) => {
+        if (state.todayWorkout?._id === action.payload._id) {
+          state.todayWorkout = action.payload;
+        }
+        state.workoutRange = state.workoutRange.map(w => w._id === action.payload._id ? action.payload : w);
+      })
+
       .addCase(fetchStreakState.fulfilled, (state, action) => {
         state.streakState = action.payload;
       })
 
       .addCase(pauseStreakToday.fulfilled, (state, action) => {
         state.streakState = action.payload;
-      });
+      })
+
+      // Server is the source of truth once it has any real history — replaces
+      // the synthetic single-entry `seedBaselineVersion` fallback (which always
+      // runs first on fetchTodayWorkout and would otherwise make the "already
+      // has versions, skip" guard trip on every load). If the server has
+      // nothing yet (workouts created before version snapshots existed), leave
+      // the local/synthetic entries alone rather than showing an empty list.
+      .addCase(fetchWorkoutVersions.fulfilled, (state, action) => {
+        if (action.payload.length === 0) return;
+        state.versions = action.payload.map(v => ({
+          version: v.version,
+          date: new Date(v.createdAt).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }),
+          changes: v.changes,
+          reason: v.reason,
+          aiExplanation: v.aiExplanation,
+          exercisesCount: v.exercisesSnapshot?.length || 0,
+          snapshot: v.workoutSnapshot ? { ...v.workoutSnapshot, version: v.version } : { exercises: v.exercisesSnapshot, version: v.version }
+        }));
+      })
+      // Without this, logging in as a different user in the same tab kept showing
+      // the previous account's workout/version data until a fetch happened to fire.
+      .addCase(logout, () => initialState);
   }
 });
 

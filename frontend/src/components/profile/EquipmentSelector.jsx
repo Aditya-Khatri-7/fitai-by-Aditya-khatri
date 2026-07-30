@@ -1,7 +1,10 @@
 import React from 'react';
 import { Check } from 'lucide-react';
+import { useTheme } from '../../context/ThemeContext';
 
 export function EquipmentSelector({ selected = [], onChange }) {
+  const { mobileMode, isNarrowViewport } = useTheme();
+  const isCompact = mobileMode || isNarrowViewport;
   const allEquipment = [
     { id: 'barbell', label: 'Barbell & Plates' },
     { id: 'dumbbell', label: 'Dumbbells' },
@@ -24,7 +27,7 @@ export function EquipmentSelector({ selected = [], onChange }) {
   };
 
   return (
-    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2.5">
+    <div className={`grid grid-cols-2 gap-2.5 ${isCompact ? '' : 'sm:grid-cols-3 md:grid-cols-5'}`}>
       {allEquipment.map((eq) => {
         const isSel = selected.includes(eq.id);
         return (
@@ -32,13 +35,13 @@ export function EquipmentSelector({ selected = [], onChange }) {
             type="button"
             key={eq.id}
             onClick={() => toggleEq(eq.id)}
-            className={`p-3 rounded-2xl border text-xs font-semibold flex items-center justify-between transition-all ${
+            className={`p-3 rounded-2xl border text-xs font-semibold flex items-center justify-between gap-1.5 transition-all min-w-0 ${
               isSel
                 ? 'bg-[var(--accent-glow)] border-[var(--accent-primary)] text-[var(--accent-primary)] shadow-md'
                 : 'bg-[var(--bg-tertiary)] border-[var(--border-color)] text-[var(--text-secondary)] hover:border-[var(--accent-primary)]'
             }`}
           >
-            <span className="truncate">{eq.label}</span>
+            <span className="break-words text-left">{eq.label}</span>
             {isSel && <Check className="w-4 h-4 text-[var(--accent-primary)] shrink-0" />}
           </button>
         );

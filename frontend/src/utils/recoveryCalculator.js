@@ -1,3 +1,14 @@
+// Single source of truth for the weighted-average formula below, so any UI
+// that needs to explain "why this score" (e.g. GreetingInsightCard's
+// breakdown panel) reads the real weights instead of duplicating them.
+export const RECOVERY_SCORE_WEIGHTS = {
+  sleepQuality: 0.25,
+  inverseSoreness: 0.25,
+  inverseStress: 0.20,
+  hrDeltaScore: 0.18,
+  hydrationScore: 0.12
+};
+
 /**
  * Calculates recovery score (0-100%) from health metrics and user profile
  */
@@ -15,7 +26,8 @@ export function calculateRecoveryScore(metrics, userProfile = {}) {
         inverseStress: 0,
         hrDeltaScore: 0,
         hydrationScore: 0
-      }
+      },
+      weights: RECOVERY_SCORE_WEIGHTS
     };
   }
 
@@ -35,12 +47,12 @@ export function calculateRecoveryScore(metrics, userProfile = {}) {
   const hydrationGlasses = metrics.hydration || 6;
   const hydrationScore = Math.min(100, (hydrationGlasses / 8) * 100);
 
-  let rawScore = 
-    (sleepQuality * 0.25) +
-    (inverseSoreness * 0.25) +
-    (inverseStress * 0.20) +
-    (hrDeltaScore * 0.18) +
-    (hydrationScore * 0.12);
+  let rawScore =
+    (sleepQuality * RECOVERY_SCORE_WEIGHTS.sleepQuality) +
+    (inverseSoreness * RECOVERY_SCORE_WEIGHTS.inverseSoreness) +
+    (inverseStress * RECOVERY_SCORE_WEIGHTS.inverseStress) +
+    (hrDeltaScore * RECOVERY_SCORE_WEIGHTS.hrDeltaScore) +
+    (hydrationScore * RECOVERY_SCORE_WEIGHTS.hydrationScore);
 
   // Apply Chronic Condition & Injury Modifiers
   const bp = metrics.bloodPressure;
@@ -86,6 +98,7 @@ export function calculateRecoveryScore(metrics, userProfile = {}) {
       inverseStress,
       hrDeltaScore,
       hydrationScore
-    }
+    },
+    weights: RECOVERY_SCORE_WEIGHTS
   };
 }

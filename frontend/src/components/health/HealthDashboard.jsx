@@ -6,6 +6,9 @@ import { RecoveryTimeline } from './RecoveryTimeline';
 import { SleepAnalysis } from './SleepAnalysis';
 import { RecoveryScoreRing } from '../dashboard/RecoveryScoreRing';
 import { BiometricSignals } from '../dashboard/BiometricSignals';
+import { ScreeningInsights } from './ScreeningInsights';
+import { YogaPoseChecker } from './YogaPoseChecker';
+import { MindfulnessSuggestion } from './MindfulnessSuggestion';
 
 export function HealthDashboard() {
   const { user } = useSelector(state => state.auth);
@@ -27,6 +30,13 @@ export function HealthDashboard() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <InjuryManager />
         <ChronicConditions />
+      </div>
+
+      <ScreeningInsights />
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <YogaPoseChecker />
+        <MindfulnessSuggestion />
       </div>
 
       <RecoveryTimeline />

@@ -1,6 +1,49 @@
 import MealPlan from '../models/MealPlan.js';
 import { generateMealPlanWithAI, regenerateSingleMealWithAI } from '../services/aiService.js';
+import { listMealOptions } from '../services/indianMealTemplates.js';
 import { findCheatDayConfig, getCheatMessage } from '../utils/cheatDayMessages.js';
+import { recommendMeals } from '../services/mlClient.js';
+
+const MEAL_COURSE_MAP = { breakfast: 'snack', lunch: 'main course', dinner: 'main course', snack: 'snack' };
+const MEAL_SERVING_GRAMS = { breakfast: 200, lunch: 280, dinner: 280, snack: 120 };
+
+// Converts a real indian_food.csv + ifct2017-nutrition dish (from the ML
+// recommender, per-100g macros) into the same shape listMealOptions() already
+// returns, so MealCard.jsx needs no changes to render either source.
+function mlDishToMealOption(dish, mealType) {
+  const grams = MEAL_SERVING_GRAMS[mealType] || 250;
+  const scale = grams / 100;
+  const region = String(dish.region || 'any').toLowerCase();
+  const cuisine = ['north', 'south', 'east', 'west'].includes(region) ? region
+    : region.startsWith('north') ? 'north' : region.startsWith('south') ? 'south' : 'any';
+
+  return {
+    type: mealType,
+    name: dish.name,
+    prepTime: (dish.prep_time || 0) + (dish.cook_time || 0) || 20,
+    cuisine,
+    nutritionSource: dish.nutrition_source,
+    foods: [{
+      name: dish.name,
+      quantity: `${grams}g`,
+      calories: Math.round((dish.calories_per_100g || 0) * scale),
+      protein: Math.round((dish.protein_g || 0) * scale),
+      carbs: Math.round((dish.carbs_g || 0) * scale),
+      fat: Math.round((dish.fat_g || 0) * scale),
+      fiber: Math.round((dish.fiber_g || 0) * scale)
+    }]
+  };
+}
+
+function recalcTotals(meals) {
+  return meals.reduce((acc, m) => ({
+    calories: acc.calories + (m.totalCalories || 0),
+    protein: acc.protein + (m.foods || []).reduce((s, f) => s + (f.protein || 0), 0),
+    carbs: acc.carbs + (m.foods || []).reduce((s, f) => s + (f.carbs || 0), 0),
+    fat: acc.fat + (m.foods || []).reduce((s, f) => s + (f.fat || 0), 0),
+    fiber: acc.fiber + (m.foods || []).reduce((s, f) => s + (f.fiber || 0), 0)
+  }), { calories: 0, protein: 0, carbs: 0, fat: 0, fiber: 0 });
+}
 
 function startOfDay(date) {
   const d = new Date(date);
@@ -16,6 +59,8 @@ function buildNutritionContext(user, overrides = {}) {
     cookingSkill: user.preferences?.cookingSkill,
     allergies: user.healthProfile?.allergies || [],
     chronicConditions: user.healthProfile?.chronicConditions || [],
+    cuisine: user.preferences?.cuisine,
+    cuisinePerMeal: user.preferences?.cuisinePerMeal,
     ...overrides
   };
 }
@@ -108,23 +153,117 @@ export async function regenerateSingleMeal(req, res) {
     const mealPlan = await MealPlan.findOne({ _id: mealPlanId, userId: req.user._id });
     if (!mealPlan) return res.status(404).json({ message: 'Meal plan not found' });
 
-    const userContext = buildNutritionContext(req.user);
+    // One-off override (e.g. "swap to vegetarian just for this meal") without
+    // permanently changing the user's stored diet preference.
+    const { dietTypeOverride, cuisineOverride } = req.body || {};
+    const userContext = buildNutritionContext(req.user, {
+      ...(dietTypeOverride ? { dietType: dietTypeOverride } : {}),
+      ...(cuisineOverride ? { cuisine: cuisineOverride } : {})
+    });
     const newMeal = await regenerateSingleMealWithAI(mealType, userContext);
 
     const idx = mealPlan.meals.findIndex(m => m.type === mealType);
     if (idx !== -1) mealPlan.meals[idx] = newMeal;
     else mealPlan.meals.push(newMeal);
 
-    mealPlan.dailyTotals = mealPlan.meals.reduce((acc, m) => ({
-      calories: acc.calories + (m.totalCalories || 0),
-      protein: acc.protein + (m.foods || []).reduce((s, f) => s + (f.protein || 0), 0),
-      carbs: acc.carbs + (m.foods || []).reduce((s, f) => s + (f.carbs || 0), 0),
-      fat: acc.fat + (m.foods || []).reduce((s, f) => s + (f.fat || 0), 0),
-      fiber: acc.fiber + (m.foods || []).reduce((s, f) => s + (f.fiber || 0), 0)
-    }), { calories: 0, protein: 0, carbs: 0, fat: 0, fiber: 0 });
+    mealPlan.dailyTotals = recalcTotals(mealPlan.meals);
 
     await mealPlan.save();
     res.json({ mealPlan, updatedMeal: newMeal });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+}
+
+// Lists real, diet-appropriate dish alternatives for a meal slot so the user can pick
+// one themselves instead of only ever getting a single blind AI-picked swap.
+export async function getMealAlternatives(req, res) {
+  try {
+    const { mealType } = req.params;
+    const cuisine = req.query.cuisine || req.user.preferences?.cuisinePerMeal?.[mealType] || req.user.preferences?.cuisine;
+    const dietType = req.query.dietType || req.user.preferences?.dietType;
+
+    const mlDishes = await recommendMeals({
+      diet_type: dietType || 'vegetarian',
+      cuisine: (cuisine && cuisine !== 'any') ? cuisine : 'any',
+      course: MEAL_COURSE_MAP[mealType] || 'main course',
+      goal: 'balanced',
+      top_k: 6
+    });
+
+    const options = (mlDishes && mlDishes.length > 0)
+      ? mlDishes.map(d => mlDishToMealOption(d, mealType))
+      : listMealOptions(mealType, dietType, cuisine);
+
+    res.json({ options });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+}
+
+// Sets a meal directly — either a picked alternative or a fully user-entered custom
+// meal — bypassing the AI generator entirely, since not every swap should be an AI call.
+export async function setMealManual(req, res) {
+  try {
+    const { mealPlanId, mealType } = req.params;
+    const { option, customMeal } = req.body || {};
+    const mealPlan = await MealPlan.findOne({ _id: mealPlanId, userId: req.user._id });
+    if (!mealPlan) return res.status(404).json({ message: 'Meal plan not found' });
+
+    const source = customMeal || option;
+    if (!source || !source.name || !Array.isArray(source.foods) || source.foods.length === 0) {
+      return res.status(400).json({ message: 'A meal name and at least one food item are required.' });
+    }
+
+    const totalCalories = source.totalCalories ?? source.foods.reduce((s, f) => s + (Number(f.calories) || 0), 0);
+    const newMeal = {
+      type: mealType,
+      name: source.name,
+      prepTime: Number(source.prepTime) || 10,
+      totalCalories,
+      foods: source.foods.map(f => ({
+        name: f.name,
+        quantity: f.quantity || '1 serving',
+        calories: Number(f.calories) || 0,
+        protein: Number(f.protein) || 0,
+        carbs: Number(f.carbs) || 0,
+        fat: Number(f.fat) || 0,
+        fiber: Number(f.fiber) || 0
+      })),
+      consumed: false,
+      consumedAt: null
+    };
+
+    const idx = mealPlan.meals.findIndex(m => m.type === mealType);
+    if (idx !== -1) mealPlan.meals[idx] = newMeal;
+    else mealPlan.meals.push(newMeal);
+
+    mealPlan.dailyTotals = recalcTotals(mealPlan.meals);
+    await mealPlan.save();
+    res.json({ mealPlan, updatedMeal: newMeal });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+}
+
+// Marks a meal as actually eaten (or un-eaten) — this is the real signal that drives
+// "consumed so far today" progress, distinct from the AI-generated plan's totals
+// which represent what was planned, not what was actually eaten.
+export async function setMealConsumed(req, res) {
+  try {
+    const { mealPlanId, mealType } = req.params;
+    const { consumed } = req.body;
+    const mealPlan = await MealPlan.findOne({ _id: mealPlanId, userId: req.user._id });
+    if (!mealPlan) return res.status(404).json({ message: 'Meal plan not found' });
+
+    const meal = mealPlan.meals.find(m => m.type === mealType);
+    if (!meal) return res.status(404).json({ message: 'Meal not found in this plan' });
+
+    meal.consumed = !!consumed;
+    meal.consumedAt = consumed ? new Date() : null;
+    await mealPlan.save();
+
+    res.json(mealPlan);
   } catch (err) {
     res.status(500).json({ message: err.message });
   }

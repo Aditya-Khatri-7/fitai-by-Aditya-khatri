@@ -1,26 +1,32 @@
 import React from 'react';
 import { useSelector, useDispatch } from 'react-redux';
 import { clearVictoryDrop } from '../../redux/slices/gamificationSlice';
+import { Modal } from '../ui/Modal';
 import { Sparkles, Trophy, Flame, Award, ArrowRight, CheckCircle2, Zap } from 'lucide-react';
 import toast from 'react-hot-toast';
 
+// Uses the shared Modal (bottom-sheet on mobile, centered + internally
+// scrollable on desktop) instead of its own fixed/centered div — the old
+// version could render taller than the viewport with no way to scroll to the
+// claim button. `onClose` is forwarded from LiveWorkoutArena so claiming loot
+// also exits the live session instead of leaving it running behind this.
 export function WorkoutVictoryModal({ onClose }) {
   const dispatch = useDispatch();
   const { lastVictoryDrop, level, rankTitle, xp, xpToNextLevel } = useSelector(state => state.gamification);
-
-  if (!lastVictoryDrop) return null;
 
   const handleClose = () => {
     dispatch(clearVictoryDrop());
     if (onClose) onClose();
   };
 
+  if (!lastVictoryDrop) return null;
+
   const xpPercent = Math.min(100, Math.round((xp / xpToNextLevel) * 100));
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md animate-in fade-in duration-300">
-      <div className="w-full max-w-lg p-6 sm:p-8 rounded-3xl bg-[var(--bg-secondary)] border-2 border-[var(--accent-primary)] shadow-[0_0_50px_rgba(59,130,246,0.3)] text-[var(--text-primary)] space-y-6 animate-in zoom-in-95 duration-300 relative overflow-hidden">
-        
+    <Modal isOpen={!!lastVictoryDrop} onClose={handleClose} maxWidth="max-w-lg" nested>
+      <div className="text-[var(--text-primary)] space-y-6 relative">
+
         {/* Ambient Glowing Background Effect */}
         <div className="absolute -top-24 -left-24 w-48 h-48 rounded-full bg-[var(--accent-primary)]/20 blur-3xl pointer-events-none" />
         <div className="absolute -bottom-24 -right-24 w-48 h-48 rounded-full bg-emerald-500/20 blur-3xl pointer-events-none" />
@@ -98,6 +104,6 @@ export function WorkoutVictoryModal({ onClose }) {
           <ArrowRight className="w-5 h-5 stroke-[3]" />
         </button>
       </div>
-    </div>
+    </Modal>
   );
 }

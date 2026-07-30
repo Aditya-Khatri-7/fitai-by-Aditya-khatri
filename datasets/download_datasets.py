@@ -22,14 +22,20 @@ DATASETS = [
   {"name": "diabetes", "slug": "uciml/pima-indians-diabetes-database"},
 
   # --- New Expanded Datasets ---
-  {"name": "food101", "slug": "dansbecker/food-101"},
+  # Original dansbecker/food-101 (9.4GB) downloaded twice but both times the zip
+  # arrived truncated/corrupt (server-side issue, not a client/retry problem —
+  # see ml plan notes). Swapped for a smaller, more reliably downloadable Indian
+  # food image dataset whose class names line up with indian_food.csv/IFCT2017
+  # nutrition data already built for the meal recommender, giving the photo
+  # classifier a real nutrition lookup instead of a disconnected English-dish set.
+  {"name": "food101", "slug": "iamsouravbanerjee/indian-food-images-dataset"},
   {"name": "har", "slug": "uciml/human-activity-recognition-with-smartphones"},
   {"name": "bodyfat", "slug": "fedesoriano/body-fat-prediction-dataset"},
-  {"name": "stress", "slug": "graceline/stress-detection-dataset"},
-  {"name": "rehabilitation", "slug": "subhamjain/rehabilitation-exercise-dataset"},
-  {"name": "yoga", "slug": "niharika41298/yoga-pose-dataset"},
-  {"name": "meditation", "slug": "amaarora/mental-health-dataset"},
-  {"name": "ifct", "slug": "nehaprabhavalkar/indian-food-composition-tables"}
+  {"name": "stress", "slug": "laavanya/stress-level-detection"},
+  {"name": "rehabilitation", "slug": "ziya07/knee-rehabilitation-sensor-dataset"},
+  {"name": "yoga", "slug": "niharika41298/yoga-poses-dataset"},
+  {"name": "meditation", "slug": "suraj520/meditation-techniques-dataset"},
+  {"name": "ifct", "slug": "gijoe707/ifct2017"}
 ]
 
 def check_kaggle_creds():

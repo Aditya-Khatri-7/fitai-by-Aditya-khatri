@@ -44,8 +44,10 @@ export const ResetPassword = () => {
       toast.success('Password reset successfully!');
       navigate('/login');
     } catch (err) {
-      toast.success('Password reset successfully!');
-      navigate('/login');
+      // This previously claimed success and sent the user to /login even when
+      // the reset call failed — they'd then be locked out with no idea why,
+      // since their password was never actually changed.
+      toast.error(err.response?.data?.message || 'Failed to reset password. Please try again.');
     } finally {
       setLoading(false);
     }

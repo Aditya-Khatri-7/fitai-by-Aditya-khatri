@@ -2,16 +2,20 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useDispatch } from 'react-redux';
 import { addAIMemory, extractHealthIntake, confirmHealthIntake } from '../../redux/slices/healthSlice';
+import { useTheme } from '../../context/ThemeContext';
 import { Stethoscope, CheckCircle2, ArrowRight, Sparkles, Upload, Mic, MicOff, AlertTriangle, ShieldCheck, Activity, Search } from 'lucide-react';
 import { ConditionAutocomplete } from '../profile/ConditionAutocomplete';
 import { BodyPainMap } from './BodyPainMap';
 import { useVoiceInput } from '../../hooks/useVoiceInput';
 import { parseHealthTextAI } from '../../utils/aiMedicalExtractor';
+import { getSocket } from '../../services/socket';
 import toast from 'react-hot-toast';
 
-export function HealthUpdateWizard() {
+export function HealthUpdateWizard({ onComplete, embedded = false }) {
   const navigate = useNavigate();
   const dispatch = useDispatch();
+  const { mobileMode, isNarrowViewport } = useTheme();
+  const isCompact = mobileMode || isNarrowViewport;
   const [step, setStep] = useState(1);
 
   // AI Intake State
@@ -88,6 +92,7 @@ export function HealthUpdateWizard() {
     setIsSubmitting(false);
 
     if (confirmHealthIntake.fulfilled.match(result)) {
+      getSocket().emit('health:updated');
       dispatch(addAIMemory({
         id: `mem_${Date.now()}`,
         timestamp: new Date().toISOString().split('T')[0],
@@ -96,26 +101,27 @@ export function HealthUpdateWizard() {
         details: `User reported ${updateType} (${laterality} ${selectedBodyParts.join(', ') || 'joint'}). Restrictions: ${restrictions}.`
       }));
       toast.success('Health profile updated — your active conditions and restrictions now reflect this.');
-      navigate('/dashboard');
+      if (onComplete) onComplete();
+      else navigate('/dashboard');
     } else {
       toast.error(result.payload || 'Failed to apply health update');
     }
   };
 
   return (
-    <div className="max-w-4xl mx-auto p-6 sm:p-8 rounded-3xl bg-[var(--bg-secondary)] border border-[var(--border-color)] shadow-2xl space-y-6">
+    <div className={embedded ? 'space-y-6' : 'max-w-4xl mx-auto p-6 sm:p-8 rounded-3xl bg-[var(--bg-secondary)] border border-[var(--border-color)] shadow-2xl space-y-6'}>
       {/* Top Wizard Header */}
-      <div className="flex items-center justify-between border-b border-[var(--border-color)] pb-5">
-        <div className="flex items-center gap-3.5">
-          <div className="w-11 h-11 rounded-2xl bg-rose-500/20 text-rose-400 flex items-center justify-center shadow-lg">
+      <div className={`flex ${isCompact ? 'flex-col gap-3' : 'items-center justify-between'} border-b border-[var(--border-color)] pb-5`}>
+        <div className="flex items-center gap-3.5 min-w-0">
+          <div className="w-11 h-11 rounded-2xl bg-rose-500/20 text-rose-400 flex items-center justify-center shadow-lg shrink-0">
             <Stethoscope className="w-6 h-6" />
           </div>
-          <div>
-            <h2 className="text-xl font-extrabold text-[var(--text-primary)]">AI Clinical Intake & Health Update Wizard</h2>
-            <p className="text-xs text-[var(--text-secondary)]">Natural language AI parsing, 150+ medical conditions, anatomical pain mapping & adaptive safety logic</p>
+          <div className="min-w-0">
+            <h2 className={`font-extrabold text-[var(--text-primary)] ${isCompact ? 'text-base' : 'text-xl'}`}>AI Clinical Intake & Health Update Wizard</h2>
+            {!isCompact && <p className="text-xs text-[var(--text-secondary)]">Natural language AI parsing, 150+ medical conditions, anatomical pain mapping & adaptive safety logic</p>}
           </div>
         </div>
-        <span className="px-3.5 py-1.5 rounded-full bg-rose-500/20 text-rose-400 font-extrabold text-xs font-mono border border-rose-500/30">
+        <span className="px-3.5 py-1.5 rounded-full bg-rose-500/20 text-rose-400 font-extrabold text-xs font-mono border border-rose-500/30 self-start shrink-0">
           Step {step} / 4
         </span>
       </div>
@@ -127,7 +133,7 @@ export function HealthUpdateWizard() {
             <h3 className="text-xs font-bold text-[var(--text-secondary)] uppercase tracking-wider mb-2">
               1. Select Primary Health Category
             </h3>
-            <div className="grid grid-cols-2 sm:grid-cols-5 gap-2.5 text-xs">
+            <div className={`grid grid-cols-2 gap-2.5 text-xs ${isCompact ? '' : 'sm:grid-cols-5'}`}>
               {[
                 { id: 'surgery', label: '🏥 Surgery', desc: 'Post-op rehabilitation' },
                 { id: 'injury', label: '🤕 Injury / Strain', desc: 'Joint/muscle strain' },
@@ -203,7 +209,7 @@ export function HealthUpdateWizard() {
             2. Anatomical Pain Mapping & Intensity Severity
           </h3>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
+          <div className={`grid grid-cols-1 gap-6 items-start ${isCompact ? '' : 'md:grid-cols-2'}`}>
             {/* Interactive Anatomical Pain Map */}
             <div className="p-4 rounded-2xl bg-[var(--bg-tertiary)] border border-[var(--border-color)]">
               <span className="text-[11px] font-bold text-[var(--text-secondary)] uppercase block mb-3 text-center">
@@ -314,7 +320,7 @@ export function HealthUpdateWizard() {
             </span>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className={`grid grid-cols-1 gap-4 ${isCompact ? '' : 'md:grid-cols-2'}`}>
             {/* Extracted Conditions & Restrictions */}
             <div className="p-4 rounded-2xl bg-[var(--bg-tertiary)] border border-[var(--border-color)] space-y-3">
               <span className="font-extrabold text-[var(--accent-primary)] uppercase tracking-wider block text-[11px]">

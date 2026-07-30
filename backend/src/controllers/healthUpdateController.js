@@ -54,6 +54,22 @@ export async function processHealthUpdate(req, res) {
   }
 }
 
+export async function getHealthMetricRange(req, res) {
+  try {
+    const { from, to } = req.query;
+    if (!from || !to) {
+      return res.status(400).json({ message: 'Query params "from" and "to" (YYYY-MM-DD) are required.' });
+    }
+    const metrics = await HealthMetric.find({
+      userId: req.user._id,
+      date: { $gte: new Date(from), $lte: new Date(new Date(to).setHours(23, 59, 59, 999)) }
+    }).sort({ date: 1 });
+    res.json(metrics);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+}
+
 export async function getHealthSnapshot(req, res) {
   try {
     const userId = req.user._id;

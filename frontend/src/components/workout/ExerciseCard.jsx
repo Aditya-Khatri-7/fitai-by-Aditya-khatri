@@ -4,23 +4,16 @@ import { setAISwapModalOpen } from '../../redux/slices/uiSlice';
 import { detectExerciseConflicts } from '../../utils/conflictDetector';
 import { ConflictWarning } from './ConflictWarning';
 import { Exercise3DDemo } from './Exercise3DDemo';
+import { toSteps } from '../../utils/exerciseSteps';
+import { useTheme } from '../../context/ThemeContext';
 import { Shuffle, Play, ListOrdered, ChevronDown } from 'lucide-react';
-
-// Splits the real exercise description (from megaGymDataset) into readable steps by
-// sentence — the source data is prose, not a numbered list, so this is a formatting
-// pass over real content rather than fabricated instructions.
-function toSteps(desc) {
-  if (!desc) return [];
-  return desc
-    .split(/(?<=[.!?])\s+/)
-    .map(s => s.trim())
-    .filter(Boolean);
-}
 
 export function ExerciseCard({ exercise, index }) {
   const dispatch = useDispatch();
   const { user } = useSelector(state => state.auth);
   const { todayMetrics } = useSelector(state => state.health);
+  const { mobileMode, isNarrowViewport } = useTheme();
+  const isCompact = mobileMode || isNarrowViewport;
   const [show3D, setShow3D] = useState(false);
   const [showSteps, setShowSteps] = useState(false);
 
@@ -29,21 +22,21 @@ export function ExerciseCard({ exercise, index }) {
 
   return (
     <div className="p-4 rounded-3xl bg-[var(--bg-secondary)] border border-[var(--border-color)] shadow-xl space-y-3 relative overflow-hidden group hover:border-[var(--accent-primary)] transition-all">
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-        <div className="flex items-center gap-3 min-w-0">
+      <div className={`flex flex-col ${isCompact ? '' : 'sm:flex-row sm:items-center'} items-start justify-between gap-3`}>
+        <div className="flex items-center gap-3 min-w-0 w-full">
           <div className="w-9 h-9 rounded-xl bg-[var(--bg-tertiary)] text-[var(--accent-primary)] font-extrabold text-xs flex items-center justify-center border border-[var(--border-color)] shrink-0">
             0{index + 1}
           </div>
-          <div className="min-w-0">
+          <div className="min-w-0 flex-1">
             <h4 className="text-sm font-bold text-[var(--text-primary)] flex flex-wrap items-center gap-2">
-              <span className="truncate">{exercise.name}</span>
+              <span className={isCompact ? 'break-words' : 'truncate'}>{exercise.name}</span>
               {exercise.isAISwapped && (
                 <span className="px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-400 text-[9px] font-bold shrink-0">
                   AI SWAPPED
                 </span>
               )}
             </h4>
-            <p className="text-xs text-[var(--text-secondary)] font-mono mt-0.5 truncate">
+            <p className={`text-xs text-[var(--text-secondary)] font-mono mt-0.5 ${isCompact ? '' : 'truncate'}`}>
               {exercise.sets} sets × {exercise.reps} @ {exercise.weight}
             </p>
           </div>

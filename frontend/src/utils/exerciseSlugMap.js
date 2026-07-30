@@ -1,3 +1,16 @@
+// Exercises with an actual named animation branch in CharacterRenderer/this catalog —
+// anything else falls through to a generic idle/wave gesture, so the UI should say so
+// instead of claiming "3D MOTION STUDIO ONLINE" for all ~2,900 real recommender exercises.
+const KNOWN_ANIMATED_SLUGS = new Set([
+  'bench_press', 'incline_dumbbell_press', 'decline_bench_press', 'shoulder_press',
+  'pushup', 'squat', 'deadlift', 'barbell_row', 'lat_pulldown', 'pullup',
+  'bicep_curl', 'tricep_extension', 'leg_press', 'lunge'
+]);
+
+export function hasRealAnimation(exerciseName = '') {
+  return KNOWN_ANIMATED_SLUGS.has(getExerciseSlug(exerciseName));
+}
+
 export function getExerciseSlug(exerciseName = '') {
   if (!exerciseName) return 'idle';
   

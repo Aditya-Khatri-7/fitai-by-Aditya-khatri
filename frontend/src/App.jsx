@@ -4,6 +4,7 @@ import { Provider, useDispatch } from 'react-redux';
 import { Toaster } from 'react-hot-toast';
 import { store } from './redux/store';
 import { fetchMe } from './redux/slices/authSlice';
+import { fetchGamificationState } from './redux/slices/gamificationSlice';
 import { ThemeProvider, useTheme } from './context/ThemeContext';
 import { SpatialCoachProvider } from './context/SpatialCoachContext';
 import { FitCompanion } from './components/companion/FitCompanion';
@@ -25,6 +26,7 @@ import { AICoachPage } from './pages/AICoachPage';
 import { AnalyticsPage } from './pages/AnalyticsPage';
 import { CalendarPage } from './pages/CalendarPage';
 import { ProfilePage } from './pages/ProfilePage';
+import { CheatPage } from './pages/CheatPage';
 
 function AuthBootstrap() {
   const dispatch = useDispatch();
@@ -32,6 +34,7 @@ function AuthBootstrap() {
   useEffect(() => {
     if (localStorage.getItem('fitai_token')) {
       dispatch(fetchMe());
+      dispatch(fetchGamificationState());
     }
   }, [dispatch]);
 
@@ -57,6 +60,7 @@ function AppRoutes() {
       <Route path="/analytics" element={<ProtectedRoute><AnalyticsPage /></ProtectedRoute>} />
       <Route path="/calendar" element={<ProtectedRoute><CalendarPage /></ProtectedRoute>} />
       <Route path="/profile" element={<ProtectedRoute><ProfilePage /></ProtectedRoute>} />
+      <Route path="/cheat" element={<ProtectedRoute><CheatPage /></ProtectedRoute>} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );

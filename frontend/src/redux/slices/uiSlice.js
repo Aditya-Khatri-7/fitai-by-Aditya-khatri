@@ -8,7 +8,8 @@ const initialState = {
   isWearableModalOpen: false,
   isAISwapModalOpen: false,
   selectedExerciseForSwap: null,
-  activeTab: 'dashboard'
+  activeTab: 'dashboard',
+  isHelpCenterOpen: false
 };
 
 const uiSlice = createSlice({
@@ -30,6 +31,9 @@ const uiSlice = createSlice({
     },
     setActiveTab: (state, action) => {
       state.activeTab = action.payload;
+    },
+    setHelpCenterOpen: (state, action) => {
+      state.isHelpCenterOpen = action.payload;
     }
   }
 });
@@ -39,7 +43,8 @@ export const {
   setCommandPaletteOpen,
   setWearableModalOpen,
   setAISwapModalOpen,
-  setActiveTab
+  setActiveTab,
+  setHelpCenterOpen
 } = uiSlice.actions;
 
 export default uiSlice.reducer;

@@ -1,7 +1,7 @@
 import React from 'react';
 import { NavLink } from 'react-router-dom';
 import { useSelector, useDispatch } from 'react-redux';
-import { toggleSidebar } from '../../redux/slices/uiSlice';
+import { toggleSidebar, setHelpCenterOpen } from '../../redux/slices/uiSlice';
 import { useTheme } from '../../context/ThemeContext';
 import {
   LayoutDashboard,
@@ -16,6 +16,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Flame,
+  Zap,
   Smartphone,
   Monitor,
   Eye,
@@ -89,16 +90,20 @@ export function Sidebar() {
         <div>
           {/* Header Logo & Collapse Toggle */}
           <div className="flex items-center justify-between h-16 px-3 border-b border-[var(--border-color)] relative">
-            <div className={`flex items-center gap-3 overflow-hidden ${!isSidebarOpen && !isDrawerLayout ? 'w-full justify-center' : ''}`}>
+            <button
+              onClick={() => dispatch(setHelpCenterOpen(true))}
+              title="Help & How FitAI Works"
+              className={`flex items-center gap-3 overflow-hidden ${!isSidebarOpen && !isDrawerLayout ? 'w-full justify-center' : ''}`}
+            >
               <div className="w-10 h-10 rounded-xl bg-[var(--accent-glow)] flex items-center justify-center text-[var(--accent-primary)] font-black shadow-lg shrink-0 border border-[var(--accent-primary)]/30">
-                <Flame className="w-6 h-6 fill-current text-[var(--accent-primary)]" />
+                <Zap className="w-6 h-6 fill-current text-[var(--accent-primary)]" />
               </div>
               {(isSidebarOpen || isDrawerLayout) && (
                 <span className="text-xl font-extrabold tracking-tight text-white drop-shadow-sm whitespace-nowrap">
                   Fit<span className="text-[var(--accent-primary)]">AI</span>
                 </span>
               )}
-            </div>
+            </button>
 
             <button
               onClick={() => dispatch(toggleSidebar())}

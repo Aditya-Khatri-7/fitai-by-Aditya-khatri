@@ -6,6 +6,7 @@ import { removeSnacksFromMealPlan, addSnacksToMealPlan, swapDinnerToVegetarian, 
 import { selectWorkoutPlan, reshuffleWorkout, swapExercise, createMergedWorkoutPlan } from '../../redux/slices/workoutSlice';
 import { setWearableModalOpen } from '../../redux/slices/uiSlice';
 import { useTheme } from '../../context/ThemeContext';
+import { useSpeech } from '../../hooks/useSpeech';
 import { resolveCoachAction, buildAppStateSnapshot } from '../../services/coachActionService';
 import { Send, Bot, Sparkles, User, Mic, MicOff, Volume2, VolumeX, Check, CheckCircle2 } from 'lucide-react';
 import toast from 'react-hot-toast';
@@ -14,6 +15,7 @@ export function CoachChat() {
   const dispatch = useDispatch();
   const navigate = useNavigate();
   const { theme, setTheme } = useTheme();
+  const { speak: speakUtterance } = useSpeech();
   const { chatHistory } = useSelector(state => state.ai);
   const nutrition = useSelector(state => state.nutrition);
   const workout = useSelector(state => state.workout);
@@ -33,12 +35,8 @@ export function CoachChat() {
 
   // Speech Output
   const speakText = (text) => {
-    if (isMuted || !('speechSynthesis' in window)) return;
-    window.speechSynthesis.cancel();
-    const utterance = new SpeechSynthesisUtterance(text);
-    utterance.rate = 1.0;
-    utterance.pitch = 1.05;
-    window.speechSynthesis.speak(utterance);
+    if (isMuted) return;
+    speakUtterance(text);
   };
 
   // Voice Recognition setup

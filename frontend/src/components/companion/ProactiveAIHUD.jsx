@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
 import { useLocation } from 'react-router-dom';
-import { selectWorkoutPlan, setTodayWorkout } from '../../redux/slices/workoutSlice';
+import { generateWorkout, persistWorkoutEdit } from '../../redux/slices/workoutSlice';
 import { calculateRecoveryScore } from '../../utils/recoveryCalculator';
+import { useSpeech } from '../../hooks/useSpeech';
 import { Sparkles, Volume2, VolumeX, Flame, Zap, Dumbbell, Activity, X } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -17,6 +18,7 @@ export function ProactiveAIHUD({ isOpen, onClose }) {
   const streak = user?.streak?.current ?? 0;
   const recovery = calculateRecoveryScore(todayMetrics, user);
 
+  const { speak: speakUtterance } = useSpeech();
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [speechEnabled, setSpeechEnabled] = useState(true);
   const [currentAdvice, setCurrentAdvice] = useState('');
@@ -43,15 +45,13 @@ export function ProactiveAIHUD({ isOpen, onClose }) {
 
     setCurrentAdvice(adviceText);
 
-    if (isOpen && speechEnabled && typeof window !== 'undefined' && 'speechSynthesis' in window) {
-      window.speechSynthesis.cancel(); // Stop any active speech
-      const utterance = new SpeechSynthesisUtterance(adviceText);
-      utterance.rate = 1.0;
-      utterance.pitch = 1.1;
-      utterance.onstart = () => setIsSpeaking(true);
-      utterance.onend = () => setIsSpeaking(false);
-      utterance.onerror = () => setIsSpeaking(false);
-      window.speechSynthesis.speak(utterance);
+    if (isOpen && speechEnabled) {
+      const utterance = speakUtterance(adviceText);
+      if (utterance) {
+        utterance.onstart = () => setIsSpeaking(true);
+        utterance.onend = () => setIsSpeaking(false);
+        utterance.onerror = () => setIsSpeaking(false);
+      }
     }
 
     return () => {
@@ -85,41 +85,55 @@ export function ProactiveAIHUD({ isOpen, onClose }) {
     const randomQuote = quotes[Math.floor(Math.random() * quotes.length)];
     setCurrentAdvice(randomQuote);
 
-    if (speechEnabled && typeof window !== 'undefined' && 'speechSynthesis' in window) {
-      window.speechSynthesis.cancel();
-      const utterance = new SpeechSynthesisUtterance(randomQuote);
-      utterance.rate = 1.05;
-      utterance.pitch = 1.15;
-      utterance.onstart = () => setIsSpeaking(true);
-      utterance.onend = () => setIsSpeaking(false);
-      window.speechSynthesis.speak(utterance);
+    if (speechEnabled) {
+      const utterance = speakUtterance(randomQuote);
+      if (utterance) {
+        utterance.onstart = () => setIsSpeaking(true);
+        utterance.onend = () => setIsSpeaking(false);
+      }
     }
   };
 
-  const handleCondenseWorkout = () => {
-    if (todayWorkout) {
-      const condensed = {
-        ...todayWorkout,
+  const handleCondenseWorkout = async () => {
+    if (todayWorkout?._id) {
+      const result = await dispatch(persistWorkoutEdit({
+        id: todayWorkout._id,
         durationTarget: 25,
-        version: todayWorkout.version + 1,
-        aiExplanation: 'Condensed workout duration to 25 mins by reducing rest intervals to 45s and increasing set tempo.'
-      };
-      dispatch(setTodayWorkout(condensed));
-      toast.success('⚡ AI Condensed Workout to 25 Mins Target on Dashboard!');
+        aiExplanation: 'Condensed workout duration to 25 mins by reducing rest intervals to 45s and increasing set tempo.',
+        versionLabel: 'Condensed workout to 25 min target',
+        versionReason: 'ai_adaptation',
+        versionExplanation: 'Condensed workout duration to 25 mins by reducing rest intervals to 45s and increasing set tempo.'
+      }));
+      if (persistWorkoutEdit.fulfilled.match(result)) {
+        toast.success('⚡ AI Condensed Workout to 25 Mins Target on Dashboard!');
+      } else {
+        toast.error(result.payload || 'Failed to condense workout');
+      }
       if (onClose) onClose();
     }
   };
 
-  const handleSwitchSplit = (planId, name) => {
-    dispatch(selectWorkoutPlan(planId));
-    toast.success(`💪 Dashboard Workout Split Switched to ${name}!`);
+  const SPLIT_FOCUS_GROUPS = {
+    legs_titan: { focusGroups: [['Quadriceps', 'Hamstrings'], ['Glutes', 'Calves']], title: 'Legs & Posterior Chain Titan', splitFocus: 'Quads, Hamstrings & Glutes' },
+    hypertrophy_upper: { focusGroups: [['Chest', 'Shoulders'], ['Triceps']], title: 'Hypertrophy Upper Body & Core', splitFocus: 'Chest, Shoulders & Triceps' }
+  };
+
+  const handleSwitchSplit = async (planId, name) => {
+    const plan = SPLIT_FOCUS_GROUPS[planId];
+    if (!plan) return;
+    const result = await dispatch(generateWorkout(plan));
+    if (generateWorkout.fulfilled.match(result)) {
+      toast.success(`💪 Dashboard Workout Split Switched to ${name}!`);
+    } else {
+      toast.error(result.payload || 'Failed to switch split');
+    }
     if (onClose) onClose();
   };
 
   if (!isOpen) return null;
 
   return (
-    <div className="fixed bottom-6 right-6 z-50 w-80 sm:w-96 p-5 rounded-3xl bg-[var(--bg-secondary)] border-2 border-[var(--accent-primary)] shadow-2xl space-y-4 animate-in fade-in slide-in-from-bottom-5 duration-300">
+    <div className="fixed bottom-24 sm:bottom-6 left-4 right-4 sm:left-auto sm:right-6 z-50 w-auto sm:w-80 md:w-96 p-4 sm:p-5 rounded-3xl bg-[var(--bg-secondary)] border-2 border-[var(--accent-primary)] shadow-2xl space-y-4 animate-in fade-in slide-in-from-bottom-5 duration-300">
       
       {/* HUD Header */}
       <div className="flex items-center justify-between border-b border-[var(--border-color)] pb-3">

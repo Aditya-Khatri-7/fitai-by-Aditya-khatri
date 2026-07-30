@@ -5,6 +5,7 @@ import { useTheme } from '../../context/ThemeContext';
 import { EquipmentSelector } from './EquipmentSelector';
 import { ProfileEditModal } from './ProfileEditModal';
 import { InjuryManager } from '../health/InjuryManager';
+import { Modal } from '../ui/Modal';
 import {
   Trophy,
   Zap,
@@ -24,17 +25,22 @@ import {
   Percent,
   ShieldAlert,
   Package,
-  Settings2
+  Settings2,
+  Users
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
+// Illustrated avatars only — no real-person stock photos. DiceBear generates
+// these procedurally from a seed, and the mouth/eyes options are pinned to
+// upbeat expressions so presets don't randomly land on a sad/neutral face.
+const HAPPY_PARAMS = 'mouth=smile,twinkle&eyes=happy,default';
 const PRESET_AVATARS = [
-  { id: 1, label: 'Raj (Athlete M)', url: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=250&q=80' },
-  { id: 2, label: 'Priya (Fit F)', url: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&w=250&q=80' },
-  { id: 3, label: 'Arjun (Marathon M)', url: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=250&q=80' },
-  { id: 4, label: 'Maya (Strength F)', url: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=250&q=80' },
-  { id: 5, label: 'Cyber AI Coach', url: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&w=250&q=80' },
-  { id: 6, label: 'Futuristic Glow', url: 'https://images.unsplash.com/photo-1633332755192-727a05c4013d?auto=format&fit=crop&w=250&q=80' }
+  { id: 1, label: 'Titan', url: `https://api.dicebear.com/7.x/avataaars/svg?seed=Titan&${HAPPY_PARAMS}` },
+  { id: 2, label: 'Sprint', url: `https://api.dicebear.com/7.x/avataaars/svg?seed=Sprint&${HAPPY_PARAMS}` },
+  { id: 3, label: 'Ember', url: `https://api.dicebear.com/7.x/avataaars/svg?seed=Ember&${HAPPY_PARAMS}` },
+  { id: 4, label: 'Nova', url: `https://api.dicebear.com/7.x/avataaars/svg?seed=Nova&${HAPPY_PARAMS}` },
+  { id: 5, label: 'Cyber Coach', url: `https://api.dicebear.com/7.x/bottts/svg?seed=Coach` },
+  { id: 6, label: 'Zen', url: `https://api.dicebear.com/7.x/avataaars/svg?seed=Zen&${HAPPY_PARAMS}` }
 ];
 
 function AttributeRadar({ attributes }) {
@@ -128,13 +134,38 @@ export function GamifiedProfile() {
   const dispatch = useDispatch();
   const { user } = useSelector(state => state.auth);
   const { level, xp, xpToNextLevel, rankTitle, archetype, attributes, achievements, prHallOfFame, skillTreePerks } = useSelector(state => state.gamification);
-  const { mobileMode } = useTheme();
+  const { mobileMode, isNarrowViewport } = useTheme();
+  const isCompact = mobileMode || isNarrowViewport;
 
   const [name, setName] = useState(user?.name || '');
   const [avatar, setAvatar] = useState(user?.avatar || PRESET_AVATARS[0].url);
   const [equipment, setEquipment] = useState(user?.equipment || []);
   const [activeTab, setActiveTab] = useState('overview');
   const [showEditModal, setShowEditModal] = useState(false);
+  const [showInjuryModal, setShowInjuryModal] = useState(false);
+  const [showCommunityModal, setShowCommunityModal] = useState(false);
+  const [joiningCommunity, setJoiningCommunity] = useState(false);
+  const isCommunityMember = !!user?.community?.joined;
+
+  const handleJoinCommunity = async () => {
+    setJoiningCommunity(true);
+    const result = await dispatch(updateProfile({ community: { joined: true } }));
+    setJoiningCommunity(false);
+    if (updateProfile.fulfilled.match(result)) {
+      toast.success('🎉 Welcome to the FitAI Community!');
+    } else {
+      toast.error(result.payload || 'Failed to join community');
+    }
+  };
+
+  const handleLeaveCommunity = async () => {
+    const result = await dispatch(updateProfile({ community: { joined: false } }));
+    if (updateProfile.fulfilled.match(result)) {
+      toast.success('You have left the FitAI Community.');
+    } else {
+      toast.error(result.payload || 'Failed to update community status');
+    }
+  };
 
   const fileInputRef = useRef(null);
 
@@ -208,6 +239,16 @@ export function GamifiedProfile() {
                 <span className="px-2 py-0.5 rounded-full bg-[var(--bg-tertiary)] border border-[var(--border-color)] text-[var(--accent-primary)] text-[10px] sm:text-xs font-bold whitespace-nowrap">
                   {archetype?.name || 'Strength Juggernaut'}
                 </span>
+                <button
+                  onClick={() => setShowCommunityModal(true)}
+                  className={`px-2 py-0.5 rounded-full border text-[10px] sm:text-xs font-bold whitespace-nowrap flex items-center gap-1 transition-all ${
+                    isCommunityMember
+                      ? 'bg-emerald-500/15 border-emerald-500/40 text-emerald-400'
+                      : 'bg-[var(--bg-tertiary)] border-[var(--border-color)] text-[var(--text-secondary)] hover:text-[var(--accent-primary)]'
+                  }`}
+                >
+                  <Users className="w-3 h-3" /> {isCommunityMember ? 'Community ✓' : 'Community'}
+                </button>
               </div>
 
               <div className="relative flex items-center max-w-xs mx-auto sm:mx-0">
@@ -285,46 +326,54 @@ export function GamifiedProfile() {
 
       {/* Body Composition Card */}
       <div className="p-4 sm:p-6 rounded-3xl bg-[var(--bg-secondary)] border border-[var(--border-color)] shadow-2xl space-y-4">
-        <div className="flex items-center justify-between">
+        <div className={`flex ${isCompact ? 'flex-col gap-2.5' : 'items-center justify-between'}`}>
           <h3 className="text-xs font-bold text-[var(--text-secondary)] uppercase tracking-wider flex items-center gap-2">
             <Activity className="w-4 h-4 text-[var(--accent-primary)]" /> BODY COMPOSITION
           </h3>
-          <button
-            onClick={() => setShowEditModal(true)}
-            className="px-3 py-1.5 rounded-xl bg-[var(--accent-glow)] hover:bg-[var(--accent-primary)] text-[var(--accent-primary)] hover:text-slate-950 border border-[var(--accent-primary)]/30 font-extrabold text-[11px] flex items-center gap-1.5 transition-all"
-          >
-            <Edit2 className="w-3.5 h-3.5" /> Edit Profile
-          </button>
+          <div className={`flex items-center gap-2 ${isCompact ? 'w-full' : ''}`}>
+            <button
+              onClick={() => setShowInjuryModal(true)}
+              className={`px-3 py-1.5 rounded-xl bg-[var(--bg-tertiary)] hover:bg-rose-500/20 text-[var(--text-secondary)] hover:text-rose-400 border border-[var(--border-color)] font-extrabold text-[11px] flex items-center justify-center gap-1.5 transition-all whitespace-nowrap ${isCompact ? 'flex-1' : ''}`}
+            >
+              <ShieldAlert className="w-3.5 h-3.5 shrink-0" /> Injuries ({(user?.injuries || []).filter(i => i.isActive !== false).length})
+            </button>
+            <button
+              onClick={() => setShowEditModal(true)}
+              className={`px-3 py-1.5 rounded-xl bg-[var(--accent-glow)] hover:bg-[var(--accent-primary)] text-[var(--accent-primary)] hover:text-slate-950 border border-[var(--accent-primary)]/30 font-extrabold text-[11px] flex items-center justify-center gap-1.5 transition-all whitespace-nowrap ${isCompact ? 'flex-1' : ''}`}
+            >
+              <Edit2 className="w-3.5 h-3.5 shrink-0" /> Edit Profile
+            </button>
+          </div>
         </div>
 
         {user?.profile?.height == null && user?.profile?.weight == null && user?.profile?.bodyFatPercentage == null ? (
           <p className="text-xs text-[var(--text-secondary)]">No body composition data yet. Click "Edit Profile" to add your height, weight, and body fat %.</p>
         ) : (
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
-            <div className="p-3.5 rounded-2xl bg-[var(--bg-tertiary)] border border-[var(--border-color)] flex items-center gap-2.5">
+          <div className={`grid gap-3 text-xs ${mobileMode ? 'grid-cols-2' : 'grid-cols-2 sm:grid-cols-4'}`}>
+            <div className="p-3.5 rounded-2xl bg-[var(--bg-tertiary)] border border-[var(--border-color)] flex items-center gap-2.5 min-w-0">
               <Ruler className="w-4 h-4 text-[var(--accent-primary)] shrink-0" />
-              <div>
+              <div className="min-w-0">
                 <span className="text-[10px] text-[var(--text-tertiary)] block uppercase font-bold">Height</span>
                 <span className="font-extrabold text-[var(--text-primary)]">{user?.profile?.height != null ? `${user.profile.height} cm` : '--'}</span>
               </div>
             </div>
-            <div className="p-3.5 rounded-2xl bg-[var(--bg-tertiary)] border border-[var(--border-color)] flex items-center gap-2.5">
+            <div className="p-3.5 rounded-2xl bg-[var(--bg-tertiary)] border border-[var(--border-color)] flex items-center gap-2.5 min-w-0">
               <Weight className="w-4 h-4 text-[var(--accent-primary)] shrink-0" />
-              <div>
+              <div className="min-w-0">
                 <span className="text-[10px] text-[var(--text-tertiary)] block uppercase font-bold">Weight</span>
                 <span className="font-extrabold text-[var(--text-primary)]">{user?.profile?.weight != null ? `${user.profile.weight} kg` : '--'}</span>
               </div>
             </div>
-            <div className="p-3.5 rounded-2xl bg-[var(--bg-tertiary)] border border-[var(--border-color)] flex items-center gap-2.5">
+            <div className="p-3.5 rounded-2xl bg-[var(--bg-tertiary)] border border-[var(--border-color)] flex items-center gap-2.5 min-w-0">
               <Percent className="w-4 h-4 text-[var(--accent-primary)] shrink-0" />
-              <div>
+              <div className="min-w-0">
                 <span className="text-[10px] text-[var(--text-tertiary)] block uppercase font-bold">Body Fat</span>
                 <span className="font-extrabold text-[var(--text-primary)]">{user?.profile?.bodyFatPercentage != null ? `${user.profile.bodyFatPercentage}%` : '--'}</span>
               </div>
             </div>
-            <div className="p-3.5 rounded-2xl bg-[var(--bg-tertiary)] border border-[var(--border-color)] flex items-center gap-2.5">
+            <div className="p-3.5 rounded-2xl bg-[var(--bg-tertiary)] border border-[var(--border-color)] flex items-center gap-2.5 min-w-0">
               <TrendingUp className="w-4 h-4 text-[var(--accent-primary)] shrink-0" />
-              <div>
+              <div className="min-w-0">
                 <span className="text-[10px] text-[var(--text-tertiary)] block uppercase font-bold">Fitness Level</span>
                 <span className="font-extrabold text-[var(--text-primary)] capitalize">{user?.profile?.fitnessLevel || '--'}</span>
               </div>
@@ -363,13 +412,66 @@ export function GamifiedProfile() {
 
       {showEditModal && <ProfileEditModal user={user} onClose={() => setShowEditModal(false)} />}
 
+      <Modal
+        isOpen={showInjuryModal}
+        onClose={() => setShowInjuryModal(false)}
+        title="Injury Manager & Health Status"
+        maxWidth="max-w-4xl"
+      >
+        <InjuryManager nested />
+      </Modal>
+
+      <Modal
+        isOpen={showCommunityModal}
+        onClose={() => setShowCommunityModal(false)}
+        title="FitAI Community"
+        maxWidth="max-w-md"
+      >
+        <div className="space-y-4 text-center">
+          <div className={`w-14 h-14 rounded-2xl mx-auto flex items-center justify-center ${isCommunityMember ? 'bg-emerald-500/15 text-emerald-400' : 'bg-[var(--accent-glow)] text-[var(--accent-primary)]'}`}>
+            <Users className="w-7 h-7" />
+          </div>
+          {isCommunityMember ? (
+            <>
+              <div>
+                <h4 className="font-extrabold text-[var(--text-primary)]">You're in the Community! 🎉</h4>
+                <p className="text-xs text-[var(--text-secondary)] mt-1.5 leading-relaxed">
+                  You're connected with other FitAI users. Community challenges and shared progress boards are coming soon.
+                </p>
+              </div>
+              <button
+                onClick={handleLeaveCommunity}
+                className="w-full py-2.5 rounded-xl bg-[var(--bg-tertiary)] border border-[var(--border-color)] text-[var(--text-secondary)] hover:text-rose-400 hover:border-rose-500/40 font-bold text-xs transition-all"
+              >
+                Leave Community
+              </button>
+            </>
+          ) : (
+            <>
+              <div>
+                <h4 className="font-extrabold text-[var(--text-primary)]">Join the FitAI Community</h4>
+                <p className="text-xs text-[var(--text-secondary)] mt-1.5 leading-relaxed">
+                  Connect with other FitAI users, share progress, and join community challenges.
+                </p>
+              </div>
+              <button
+                onClick={handleJoinCommunity}
+                disabled={joiningCommunity}
+                className="w-full py-2.5 rounded-xl bg-gradient-to-r from-[var(--accent-primary)] to-emerald-400 text-slate-950 font-extrabold text-xs shadow-lg disabled:opacity-60 transition-all"
+              >
+                {joiningCommunity ? 'Joining...' : 'Join the Community 🎉'}
+              </button>
+            </>
+          )}
+        </div>
+      </Modal>
+
       {/* Navigation Sub-Tabs Strip (Horizontal Scroll with No Wrap) */}
       <div className="flex border-b border-[var(--border-color)] gap-3 text-xs font-extrabold overflow-x-auto scrollbar-none pb-1.5 whitespace-nowrap">
         {[
           { id: 'overview', label: 'Attribute Stats & Radar', tip: '📊 5-Axis Fitness Radar Active! Inspect STR, END, MOB, CON, REC stats.' },
           { id: 'achievements', label: 'Achievements & Records', tip: '🏆 Achievements, PR Hall of Fame, and Skill Perks — all your earned progress in one place.' },
-          { id: 'equipment', label: 'Gear Inventory', tip: '🛡️ Gear Inventory Active! Manage your equipment here.' },
-          { id: 'injuries', label: `Injuries (${(user?.injuries || []).filter(i => i.isActive !== false).length})`, tip: '🩹 Injury Manager Active! Manage active injuries and exercise restrictions here.' }
+          { id: 'equipment', label: 'Gear Inventory', tip: '🛡️ Gear Inventory Active! Manage your equipment here.' }
         ].map(tab => (
           <button
             key={tab.id}
@@ -441,7 +543,7 @@ export function GamifiedProfile() {
               </span>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div className={`grid grid-cols-1 gap-3 ${isCompact ? '' : 'sm:grid-cols-3'}`}>
               {achievements.map((ach) => (
                 <div
                   key={ach.id}
@@ -525,7 +627,7 @@ export function GamifiedProfile() {
               <Zap className="w-4 h-4 text-[var(--accent-primary)]" /> RPG SKILL TREE & PERKS
             </h3>
 
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div className={`grid grid-cols-1 gap-3 ${isCompact ? '' : 'sm:grid-cols-3'}`}>
               {skillTreePerks.map((perk) => (
                 <div key={perk.id} className={`p-4 rounded-2xl border space-y-2 ${perk.unlocked ? 'bg-[var(--bg-tertiary)] border-[var(--border-color)]' : 'bg-[var(--bg-tertiary)]/40 border-[var(--border-color)] opacity-60'}`}>
                   <div className="flex items-center justify-between">
@@ -549,12 +651,6 @@ export function GamifiedProfile() {
         </div>
       )}
 
-      {/* TAB 6: INJURIES */}
-      {activeTab === 'injuries' && (
-        <div className="animate-in fade-in duration-300">
-          <InjuryManager />
-        </div>
-      )}
     </div>
   );
 }

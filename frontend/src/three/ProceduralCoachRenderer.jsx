@@ -35,19 +35,23 @@ export const ProceduralCoachRenderer = forwardRef(function ProceduralCoachRender
 
   // Left Arm
   const leftShoulderGroup = useRef();
-  const leftLowerArmGroup = useRef();
+  const leftElbowGroup = useRef();
+  const leftWristGroup = useRef();
 
   // Right Arm
   const rightShoulderGroup = useRef();
-  const rightLowerArmGroup = useRef();
+  const rightElbowGroup = useRef();
+  const rightWristGroup = useRef();
 
   // Left Leg
   const leftHipGroup = useRef();
   const leftKneeGroup = useRef();
+  const leftAnkleGroup = useRef();
 
   // Right Leg
   const rightHipGroup = useRef();
   const rightKneeGroup = useRef();
+  const rightAnkleGroup = useRef();
 
   // Materials
   const bodyMaterial = useRef(
@@ -183,10 +187,28 @@ export const ProceduralCoachRenderer = forwardRef(function ProceduralCoachRender
         rightShoulderGroup.current.rotation.z = -0.35 - Math.cos(time * 8) * 0.15;
         rightShoulderGroup.current.rotation.x = Math.sin(time * 6) * 0.2;
       }
+      if (leftElbowGroup.current) {
+        leftElbowGroup.current.rotation.x = 0.4 + Math.sin(time * 8 + 1) * 0.25;
+      }
+      if (rightElbowGroup.current) {
+        rightElbowGroup.current.rotation.x = 0.4 + Math.cos(time * 8 + 1) * 0.25;
+      }
+      if (leftWristGroup.current) {
+        leftWristGroup.current.rotation.z = Math.sin(time * 10) * 0.3;
+      }
+      if (rightWristGroup.current) {
+        rightWristGroup.current.rotation.z = -Math.cos(time * 10) * 0.3;
+      }
     } else if (gestureTrigger === 'wave') {
       if (rightShoulderGroup.current) {
         rightShoulderGroup.current.rotation.z = -2.2 + Math.sin(time * 12) * 0.3;
         rightShoulderGroup.current.rotation.x = 0;
+      }
+      if (rightElbowGroup.current) {
+        rightElbowGroup.current.rotation.x = THREE.MathUtils.lerp(rightElbowGroup.current.rotation.x, 0.3, 0.15);
+      }
+      if (rightWristGroup.current) {
+        rightWristGroup.current.rotation.z = Math.sin(time * 14) * 0.5;
       }
     } else {
       if (leftShoulderGroup.current) {
@@ -197,7 +219,27 @@ export const ProceduralCoachRenderer = forwardRef(function ProceduralCoachRender
         rightShoulderGroup.current.rotation.z = THREE.MathUtils.lerp(rightShoulderGroup.current.rotation.z, -0.2 - breathOffset, 0.08);
         rightShoulderGroup.current.rotation.x = THREE.MathUtils.lerp(rightShoulderGroup.current.rotation.x, 0, 0.08);
       }
+      if (leftElbowGroup.current) {
+        leftElbowGroup.current.rotation.x = THREE.MathUtils.lerp(leftElbowGroup.current.rotation.x, 0.12 + breathOffset * 0.5, 0.08);
+      }
+      if (rightElbowGroup.current) {
+        rightElbowGroup.current.rotation.x = THREE.MathUtils.lerp(rightElbowGroup.current.rotation.x, 0.12 - breathOffset * 0.5, 0.08);
+      }
+      if (leftWristGroup.current) {
+        leftWristGroup.current.rotation.z = THREE.MathUtils.lerp(leftWristGroup.current.rotation.z, 0, 0.08);
+      }
+      if (rightWristGroup.current) {
+        rightWristGroup.current.rotation.z = THREE.MathUtils.lerp(rightWristGroup.current.rotation.z, 0, 0.08);
+      }
     }
+
+    // Subtle idle weight-shift through hips/knees/ankles so the legs read as
+    // articulated rather than static support columns.
+    const weightShift = Math.sin(time * 1.4) * 0.04;
+    if (leftKneeGroup.current) leftKneeGroup.current.rotation.x = Math.max(0, weightShift);
+    if (rightKneeGroup.current) rightKneeGroup.current.rotation.x = Math.max(0, -weightShift);
+    if (leftAnkleGroup.current) leftAnkleGroup.current.rotation.x = -Math.max(0, weightShift) * 0.6;
+    if (rightAnkleGroup.current) rightAnkleGroup.current.rotation.x = -Math.max(0, -weightShift) * 0.6;
   });
 
   return (
@@ -257,16 +299,23 @@ export const ProceduralCoachRenderer = forwardRef(function ProceduralCoachRender
             <mesh position={[-0.04, -0.14, 0]} material={bodyMaterial.current}>
               <cylinderGeometry args={[0.05, 0.045, 0.22, 16]} />
             </mesh>
-            <group ref={leftLowerArmGroup} position={[-0.04, -0.25, 0]}>
+            {/* Elbow Joint */}
+            <group ref={leftElbowGroup} position={[-0.04, -0.25, 0]}>
               <mesh material={jointMaterial.current}>
                 <sphereGeometry args={[0.045, 16, 16]} />
               </mesh>
-              <mesh position={[0, -0.13, 0]} material={bodyMaterial.current}>
-                <cylinderGeometry args={[0.04, 0.035, 0.2, 16]} />
+              <mesh position={[0, -0.11, 0]} material={bodyMaterial.current}>
+                <cylinderGeometry args={[0.04, 0.035, 0.17, 16]} />
               </mesh>
-              <mesh position={[0, -0.24, 0]} material={glowingMaterial.current}>
-                <sphereGeometry args={[0.04, 16, 16]} />
-              </mesh>
+              {/* Wrist Joint */}
+              <group ref={leftWristGroup} position={[0, -0.2, 0]}>
+                <mesh material={jointMaterial.current}>
+                  <sphereGeometry args={[0.035, 16, 16]} />
+                </mesh>
+                <mesh position={[0, -0.05, 0]} material={glowingMaterial.current}>
+                  <sphereGeometry args={[0.04, 16, 16]} />
+                </mesh>
+              </group>
             </group>
           </group>
 
@@ -278,16 +327,23 @@ export const ProceduralCoachRenderer = forwardRef(function ProceduralCoachRender
             <mesh position={[0.04, -0.14, 0]} material={bodyMaterial.current}>
               <cylinderGeometry args={[0.05, 0.045, 0.22, 16]} />
             </mesh>
-            <group ref={rightLowerArmGroup} position={[0.04, -0.25, 0]}>
+            {/* Elbow Joint */}
+            <group ref={rightElbowGroup} position={[0.04, -0.25, 0]}>
               <mesh material={jointMaterial.current}>
                 <sphereGeometry args={[0.045, 16, 16]} />
               </mesh>
-              <mesh position={[0, -0.13, 0]} material={bodyMaterial.current}>
-                <cylinderGeometry args={[0.04, 0.035, 0.2, 16]} />
+              <mesh position={[0, -0.11, 0]} material={bodyMaterial.current}>
+                <cylinderGeometry args={[0.04, 0.035, 0.17, 16]} />
               </mesh>
-              <mesh position={[0, -0.24, 0]} material={glowingMaterial.current}>
-                <sphereGeometry args={[0.04, 16, 16]} />
-              </mesh>
+              {/* Wrist Joint */}
+              <group ref={rightWristGroup} position={[0, -0.2, 0]}>
+                <mesh material={jointMaterial.current}>
+                  <sphereGeometry args={[0.035, 16, 16]} />
+                </mesh>
+                <mesh position={[0, -0.05, 0]} material={glowingMaterial.current}>
+                  <sphereGeometry args={[0.04, 16, 16]} />
+                </mesh>
+              </group>
             </group>
           </group>
         </group>
@@ -302,13 +358,23 @@ export const ProceduralCoachRenderer = forwardRef(function ProceduralCoachRender
             <mesh position={[0, -0.18, 0]} material={bodyMaterial.current}>
               <cylinderGeometry args={[0.06, 0.05, 0.28, 16]} />
             </mesh>
+            {/* Knee Joint */}
             <group ref={leftKneeGroup} position={[0, -0.32, 0]}>
               <mesh material={jointMaterial.current}>
                 <sphereGeometry args={[0.05, 16, 16]} />
               </mesh>
-              <mesh position={[0, -0.18, 0]} material={bodyMaterial.current}>
-                <cylinderGeometry args={[0.045, 0.035, 0.28, 16]} />
+              <mesh position={[0, -0.16, 0]} material={bodyMaterial.current}>
+                <cylinderGeometry args={[0.045, 0.035, 0.24, 16]} />
               </mesh>
+              {/* Ankle Joint + Foot */}
+              <group ref={leftAnkleGroup} position={[0, -0.28, 0]}>
+                <mesh material={jointMaterial.current}>
+                  <sphereGeometry args={[0.035, 16, 16]} />
+                </mesh>
+                <mesh position={[0, -0.025, 0.045]} material={bodyMaterial.current}>
+                  <boxGeometry args={[0.06, 0.04, 0.13]} />
+                </mesh>
+              </group>
             </group>
           </group>
 
@@ -320,13 +386,23 @@ export const ProceduralCoachRenderer = forwardRef(function ProceduralCoachRender
             <mesh position={[0, -0.18, 0]} material={bodyMaterial.current}>
               <cylinderGeometry args={[0.06, 0.05, 0.28, 16]} />
             </mesh>
+            {/* Knee Joint */}
             <group ref={rightKneeGroup} position={[0, -0.32, 0]}>
               <mesh material={jointMaterial.current}>
                 <sphereGeometry args={[0.05, 16, 16]} />
               </mesh>
-              <mesh position={[0, -0.18, 0]} material={bodyMaterial.current}>
-                <cylinderGeometry args={[0.045, 0.035, 0.28, 16]} />
+              <mesh position={[0, -0.16, 0]} material={bodyMaterial.current}>
+                <cylinderGeometry args={[0.045, 0.035, 0.24, 16]} />
               </mesh>
+              {/* Ankle Joint + Foot */}
+              <group ref={rightAnkleGroup} position={[0, -0.28, 0]}>
+                <mesh material={jointMaterial.current}>
+                  <sphereGeometry args={[0.035, 16, 16]} />
+                </mesh>
+                <mesh position={[0, -0.025, 0.045]} material={bodyMaterial.current}>
+                  <boxGeometry args={[0.06, 0.04, 0.13]} />
+                </mesh>
+              </group>
             </group>
           </group>
         </group>

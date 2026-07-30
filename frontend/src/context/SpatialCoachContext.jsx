@@ -2,9 +2,11 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
 import { setWearableModalOpen } from '../redux/slices/uiSlice';
-import { removeSnacksFromMealPlan, addSnacksToMealPlan, swapDinnerToVegetarian, swapBreakfastMeal, updateSpecificMeal, updateMultipleMeals } from '../redux/slices/nutritionSlice';
-import { selectWorkoutPlan, reshuffleWorkout, swapExercise, createMergedWorkoutPlan } from '../redux/slices/workoutSlice';
+import { removeSnacksFromMealPlan, updateSpecificMeal, updateMultipleMeals, regenerateSingleMealRemote } from '../redux/slices/nutritionSlice';
+import { reshuffleWorkout, swapExercise, createMergedWorkoutPlan, generateWorkout, persistWorkoutEdit } from '../redux/slices/workoutSlice';
+import { store } from '../redux/store';
 import { useTheme } from './ThemeContext';
+import { useSpeech } from '../hooks/useSpeech';
 import { resolveCoachAction, buildAppStateSnapshot } from '../services/coachActionService';
 import { SpatialCoachContext } from './spatialCoachContextObject';
 import toast from 'react-hot-toast';
@@ -14,6 +16,7 @@ export function SpatialCoachProvider({ children }) {
   const location = useLocation();
   const dispatch = useDispatch();
   const { theme, setTheme, isThemeSwitcherOpen, setIsThemeSwitcherOpen } = useTheme();
+  const { speak: speakUtterance } = useSpeech();
   const nutrition = useSelector(state => state.nutrition);
   const workout = useSelector(state => state.workout);
 
@@ -42,14 +45,12 @@ export function SpatialCoachProvider({ children }) {
 
     if (speechTimerRef.current) clearTimeout(speechTimerRef.current);
 
-    if (!isMuted && 'speechSynthesis' in window) {
-      window.speechSynthesis.cancel();
-      const utterance = new SpeechSynthesisUtterance(text);
-      utterance.rate = 1.05;
-      utterance.pitch = 1.02;
-      utterance.onend = () => setIsSpeaking(false);
-      utterance.onerror = () => setIsSpeaking(false);
-      window.speechSynthesis.speak(utterance);
+    if (!isMuted) {
+      const utterance = speakUtterance(text);
+      if (utterance) {
+        utterance.onend = () => setIsSpeaking(false);
+        utterance.onerror = () => setIsSpeaking(false);
+      }
     }
 
     speechTimerRef.current = setTimeout(() => {
@@ -101,23 +102,47 @@ export function SpatialCoachProvider({ children }) {
     } else if (action.type === 'UPDATE_CUSTOM_MEAL') {
       dispatch(updateSpecificMeal(action.payload));
       toast.success(`🥗 Meal updated to ${action.payload.name}!`);
-    } else if (action.type === 'SWAP_BREAKFAST') {
-      dispatch(swapBreakfastMeal(action.payload));
-      toast.success("🥗 Breakfast updated to Scrambled Eggs & Turkey Bacon Toast!");
-    } else if (action.type === 'SWAP_DINNER_VEG') {
-      dispatch(swapDinnerToVegetarian());
-      toast.success("🥗 Dinner updated to Paneer & Tofu Tikka Masala!");
-    } else if (action.type === 'ADD_SNACKS') {
-      dispatch(addSnacksToMealPlan());
-      toast.success("🥗 Healthy Snack added to Nutrition Plan!");
+    } else if (action.type === 'SWAP_BREAKFAST' || action.type === 'SWAP_DINNER_VEG' || action.type === 'ADD_SNACKS') {
+      // Routed through the real backend regenerator (real Indian-diet-aware templates
+      // respecting the user's actual dietType) instead of the old hardcoded Western
+      // dish fixtures, which never persisted and ignored the user's real diet profile.
+      const mealType = action.type === 'SWAP_DINNER_VEG' ? 'dinner' : action.type === 'ADD_SNACKS' ? 'snack' : 'breakfast';
+      const mealPlanId = nutrition.todayMealPlan?._id;
+      if (mealPlanId) {
+        dispatch(regenerateSingleMealRemote({
+          mealPlanId,
+          mealType,
+          dietTypeOverride: action.type === 'SWAP_DINNER_VEG' ? 'vegetarian' : undefined
+        }));
+        toast.success(`🥗 ${mealType.charAt(0).toUpperCase() + mealType.slice(1)} swapped — matched to your real diet profile!`);
+      } else {
+        toast.error('Generate a meal plan first.');
+      }
     } else if (action.type === 'REMOVE_SNACKS') {
       dispatch(removeSnacksFromMealPlan());
       toast.success("🥗 Snacks removed from Nutrition Plan!");
     } else if (action.type === 'SWITCH_WORKOUT') {
-      dispatch(selectWorkoutPlan(action.payload));
-      toast.success(`🏋️ Switched active workout split!`);
+      const SPLIT_FOCUS_GROUPS = {
+        hypertrophy_upper: { focusGroups: [['Chest', 'Shoulders'], ['Triceps']], title: 'Hypertrophy Upper Body & Core', splitFocus: 'Chest, Shoulders & Triceps' },
+        power_pull: { focusGroups: [['Back', 'Lats'], ['Biceps']], title: 'Power Pull & Back Specialization', splitFocus: 'Lats, Upper Back & Biceps' },
+        legs_titan: { focusGroups: [['Quadriceps', 'Hamstrings'], ['Glutes', 'Calves']], title: 'Legs & Posterior Chain Titan', splitFocus: 'Quads, Hamstrings & Glutes' },
+        full_body: { focusGroups: [['Chest', 'Shoulders'], ['Back', 'Lats'], ['Quadriceps', 'Hamstrings'], ['Abdominals']], title: 'Full Body Functional AI Hybrid', splitFocus: 'Chest, Back, Legs & Core' },
+        rehab_core: { focusGroups: [['Abdominals']], title: 'Rehab & Core Stability', splitFocus: 'Core & Mobility' }
+      };
+      const plan = SPLIT_FOCUS_GROUPS[action.payload];
+      if (plan) {
+        dispatch(generateWorkout(plan));
+        toast.success(`🏋️ Switched active workout split!`);
+      }
     } else if (action.type === 'SWAP_EXERCISE') {
       dispatch(swapExercise(action.payload));
+      // Read fresh state via the store directly (not the closed-over `workout` prop,
+      // which is stale until this component re-renders) so the persisted PATCH
+      // actually contains the swapped exercise, not the pre-swap array.
+      const freshWorkout = store.getState().workout.todayWorkout;
+      if (freshWorkout?._id) {
+        dispatch(persistWorkoutEdit({ id: freshWorkout._id, exercises: freshWorkout.exercises }));
+      }
       toast.success("🔄 Exercise swapped for knee safety!");
     } else if (action.type === 'CHANGE_THEME') {
       setTheme(action.payload);

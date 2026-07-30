@@ -1,12 +1,15 @@
 import React, { useState } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
 import { addXp } from '../../redux/slices/gamificationSlice';
+import { useTheme } from '../../context/ThemeContext';
 import { Flame, ShieldCheck, Zap, Award, X, Sparkles } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 export function StreakFlame() {
   const dispatch = useDispatch();
   const streak = useSelector(state => state.auth.user?.streak?.current ?? 0);
+  const { mobileMode, isNarrowViewport } = useTheme();
+  const isCompact = mobileMode || isNarrowViewport;
   const [isOpen, setIsOpen] = useState(false);
   const [claimedToday, setClaimedToday] = useState(false);
 
@@ -23,14 +26,18 @@ export function StreakFlame() {
       {/* TopNav Badge Button */}
       <button
         onClick={() => setIsOpen(true)}
-        className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gradient-to-r from-amber-500/20 to-orange-500/20 border border-amber-500/40 text-amber-400 font-extrabold text-xs shadow-md hover:scale-105 transition-all cursor-pointer group"
+        className={`flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-amber-500/20 to-orange-500/20 border border-amber-500/40 text-amber-400 font-extrabold text-xs shadow-md hover:scale-105 transition-all cursor-pointer group shrink-0 ${
+          isCompact ? 'px-2 py-1.5' : 'px-3 py-1.5'
+        }`}
         title="View Gamified Streak Status"
       >
-        <Flame className="w-4 h-4 fill-amber-400 text-amber-400 animate-pulse group-hover:scale-110 transition-transform" />
-        <span className="font-mono">{streak} DAYS</span>
-        <span className="hidden sm:inline text-[10px] px-1.5 py-0.2 bg-amber-500/30 text-amber-300 rounded font-bold uppercase">
-          WARRIOR
-        </span>
+        <Flame className="w-4 h-4 fill-amber-400 text-amber-400 animate-pulse group-hover:scale-110 transition-transform shrink-0" />
+        <span className="font-mono whitespace-nowrap">{streak}{isCompact ? '' : ' DAYS'}</span>
+        {!isCompact && (
+          <span className="hidden sm:inline text-[10px] px-1.5 py-0.2 bg-amber-500/30 text-amber-300 rounded font-bold uppercase">
+            WARRIOR
+          </span>
+        )}
       </button>
 
       {/* Streak Details Modal */}

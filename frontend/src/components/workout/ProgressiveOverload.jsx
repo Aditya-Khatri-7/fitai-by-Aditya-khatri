@@ -30,16 +30,17 @@ export function ProgressiveOverload() {
         <p className="text-[11px] text-[var(--text-secondary)]">Generate a workout to receive load/rep progression suggestions.</p>
       )}
 
-      <div className="space-y-2 text-xs">
+      <div className="space-y-2.5 text-xs">
         {suggestions.map((sug, i) => (
-          <div key={i} className="p-3.5 rounded-2xl bg-[var(--bg-tertiary)] border border-[var(--border-color)] flex items-center justify-between gap-3">
-            <div>
-              <span className="font-extrabold text-[var(--text-primary)]">{sug.exercise}</span>
-              <p className="text-[var(--text-secondary)] text-[11px] font-medium">{sug.reason}</p>
+          <div key={i} className="p-3.5 rounded-2xl bg-[var(--bg-tertiary)] border border-[var(--border-color)] space-y-2">
+            <div className="flex items-center justify-between gap-2">
+              <span className="font-extrabold text-[var(--text-primary)] truncate">{sug.exercise}</span>
+              <TrendingUp className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
             </div>
-            <span className="px-3 py-1 rounded-xl bg-emerald-500/20 text-emerald-400 font-extrabold text-[11px] border border-emerald-500/30 shrink-0">
-              {sug.action}
-            </span>
+            <p className="text-[var(--text-secondary)] text-[11px] font-medium">{sug.reason}</p>
+            <div className="px-3 py-2 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 font-bold text-[11px]">
+              → {sug.action}
+            </div>
           </div>
         ))}
       </div>

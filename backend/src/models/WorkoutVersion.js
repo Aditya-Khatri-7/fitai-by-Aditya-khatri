@@ -7,6 +7,10 @@ const WorkoutVersionSchema = new mongoose.Schema({
   changes: String,
   reason: { type: String, enum: ['ai_adaptation', 'injury_detected', 'goal_change', 'user_override', 'recovery_low', 'equipment_change'] },
   exercisesSnapshot: [mongoose.Schema.Types.Mixed],
+  // Full workout fields at this version (title/splitFocus/durationTarget/type) —
+  // exercisesSnapshot alone isn't enough to restore a complete workout without
+  // wiping out everything else on the document.
+  workoutSnapshot: mongoose.Schema.Types.Mixed,
   previousVersion: Number,
   aiExplanation: String
 }, { timestamps: true });

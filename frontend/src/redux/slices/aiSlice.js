@@ -1,4 +1,5 @@
 import { createSlice } from '@reduxjs/toolkit';
+import { logout } from './authSlice';
 
 const initialState = {
   chatHistory: [
@@ -25,6 +26,12 @@ const aiSlice = createSlice({
     setCoachMood: (state, action) => {
       state.coachMood = action.payload;
     }
+  },
+  extraReducers: (builder) => {
+    builder
+      // Without this, logging in as a different user in the same tab kept showing
+      // the previous account's AI coach chat transcript.
+      .addCase(logout, () => initialState);
   }
 });
 

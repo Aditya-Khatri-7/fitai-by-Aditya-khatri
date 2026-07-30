@@ -1,19 +1,38 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { useSelector } from 'react-redux';
 import { useLocation } from 'react-router-dom';
+import toast from 'react-hot-toast';
 import { Sidebar } from './Sidebar';
 import { BottomNav } from './BottomNav';
 import { TopNav } from './TopNav';
 import { CommandPalette } from './CommandPalette';
 import { WearableSync } from '../health/WearableSync';
 import { ThemeSwitcher } from '../ui/ThemeSwitcher';
+import { HelpCenter } from '../help/HelpCenter';
 import { useTheme } from '../../context/ThemeContext';
+import { getSocket } from '../../services/socket';
 
 export function DashboardLayout({ children }) {
   const location = useLocation();
   const { isSidebarOpen } = useSelector(state => state.ui);
   const { mobileMode, isNarrowViewport } = useTheme();
   const isDrawerLayout = mobileMode || isNarrowViewport;
+
+  // Real-time cross-device insight feed — the backend already emits these on
+  // workout-start/health-update, this just surfaces them instead of leaving
+  // the socket connection unused.
+  useEffect(() => {
+    const socket = getSocket();
+    socket.connect();
+    const handleInsight = (payload) => {
+      if (payload?.message) toast(payload.message, { icon: '📡' });
+    };
+    socket.on('insight:new', handleInsight);
+    return () => {
+      socket.off('insight:new', handleInsight);
+      socket.disconnect();
+    };
+  }, []);
 
   return (
     <div className={`bg-[var(--bg-primary)] text-[var(--text-primary)] flex flex-col font-sans transition-colors relative ${
@@ -52,6 +71,7 @@ export function DashboardLayout({ children }) {
       <CommandPalette />
       <WearableSync />
       <ThemeSwitcher />
+      <HelpCenter />
     </div>
   );
 }

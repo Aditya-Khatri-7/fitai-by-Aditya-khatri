@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useTheme } from '../../context/ThemeContext';
 import { Activity, Flame, ShieldAlert } from 'lucide-react';
 
 export function BodyPainMap({
@@ -8,6 +9,8 @@ export function BodyPainMap({
   painLevel = 0,
   onChangePainLevel
 }) {
+  const { mobileMode, isNarrowViewport } = useTheme();
+  const isCompact = mobileMode || isNarrowViewport;
   const [view, setView] = useState('front'); // 'front' | 'back'
 
   const handleToggle = (id) => {
@@ -49,16 +52,18 @@ export function BodyPainMap({
 
   return (
     <div className="p-4 rounded-2xl bg-[var(--bg-tertiary)] border border-[var(--border-color)] space-y-4">
-      <div className="flex items-center justify-between">
-        <div>
-          <span className="text-[10px] font-bold text-[var(--accent-primary)] uppercase tracking-wider block">
-            INTERACTIVE ANATOMICAL PAIN MAP
-          </span>
+      <div className={`flex ${isCompact ? 'flex-col gap-2.5' : 'items-center justify-between'}`}>
+        <div className="min-w-0">
+          {!isCompact && (
+            <span className="text-[10px] font-bold text-[var(--accent-primary)] uppercase tracking-wider block">
+              INTERACTIVE ANATOMICAL PAIN MAP
+            </span>
+          )}
           <p className="text-xs font-bold text-[var(--text-primary)]">Click Body Parts & Adjust Pain Score</p>
         </div>
 
         {/* Front / Back Toggle */}
-        <div className="flex items-center gap-1 p-1 rounded-xl bg-[var(--bg-secondary)] border border-[var(--border-color)] text-[10px]">
+        <div className={`flex items-center gap-1 p-1 rounded-xl bg-[var(--bg-secondary)] border border-[var(--border-color)] text-[10px] ${isCompact ? 'self-start' : ''}`}>
           <button
             type="button"
             onClick={() => setView('front')}

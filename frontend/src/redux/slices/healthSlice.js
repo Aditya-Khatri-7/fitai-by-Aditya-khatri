@@ -1,5 +1,6 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 import api from '../../services/api';
+import { logout } from './authSlice';
 
 export const fetchHealthSnapshot = createAsyncThunk('health/fetchSnapshot', async (_, { rejectWithValue }) => {
   try {
@@ -7,6 +8,15 @@ export const fetchHealthSnapshot = createAsyncThunk('health/fetchSnapshot', asyn
     return data;
   } catch (err) {
     return rejectWithValue(err.response?.data?.message || 'Failed to load health data');
+  }
+});
+
+export const fetchHealthMetricRange = createAsyncThunk('health/fetchMetricRange', async ({ from, to }, { rejectWithValue }) => {
+  try {
+    const { data } = await api.get('/health/metrics', { params: { from, to } });
+    return data;
+  } catch (err) {
+    return rejectWithValue(err.response?.data?.message || 'Failed to load health metric history');
   }
 });
 
@@ -40,6 +50,7 @@ export const confirmHealthIntake = createAsyncThunk('health/confirmIntake', asyn
 const initialState = {
   todayMetrics: null,
   metricsHistory: [],
+  metricsRange: [],
   injuries: [],
   chronicConditions: [],
   aiMemories: [],
@@ -81,6 +92,10 @@ const healthSlice = createSlice({
         state.error = action.payload;
       })
 
+      .addCase(fetchHealthMetricRange.fulfilled, (state, action) => {
+        state.metricsRange = action.payload;
+      })
+
       .addCase(syncWearable.pending, (state) => { state.syncing = true; })
       .addCase(syncWearable.fulfilled, (state, action) => {
         state.syncing = false;
@@ -90,7 +105,10 @@ const healthSlice = createSlice({
       .addCase(syncWearable.rejected, (state, action) => {
         state.syncing = false;
         state.error = action.payload;
-      });
+      })
+      // Without this, logging in as a different user in the same tab kept showing
+      // the previous account's injuries/chronic conditions/AI memories until a fetch happened to fire.
+      .addCase(logout, () => initialState);
   }
 });
 

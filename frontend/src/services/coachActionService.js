@@ -14,7 +14,12 @@ export async function resolveCoachAction(message, history, appState) {
       appState
     });
 
-    if (data && data.proposedAction) {
+    // A successful response is valid on its own — proposedAction is legitimately
+    // null for plain questions (the backend answers those from real app state
+    // instead of proposing a change). Requiring a truthy action here was silently
+    // discarding every correct informational answer in favor of the generic
+    // client-side fallback below.
+    if (data && data.replyText) {
       return data;
     }
   } catch (err) {

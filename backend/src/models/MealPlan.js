@@ -18,7 +18,9 @@ const MealPlanSchema = new mongoose.Schema({
     }],
     totalCalories: Number,
     prepTime: Number,
-    recipe: String
+    recipe: String,
+    consumed: { type: Boolean, default: false },
+    consumedAt: Date
   }],
 
   dailyTotals: {

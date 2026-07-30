@@ -5,6 +5,7 @@ import { Canvas } from '@react-three/fiber';
 import { OrbitControls } from '@react-three/drei';
 import * as THREE from 'three';
 import { useTheme } from '../../context/ThemeContext';
+import { useSpeech } from '../../hooks/useSpeech';
 import { useSpatialCoach } from '../../context/useSpatialCoach';
 import { setWearableModalOpen } from '../../redux/slices/uiSlice';
 import { CharacterRenderer } from '../../three/CharacterRenderer';
@@ -42,7 +43,9 @@ export function FitCompanion() {
   const dispatch = useDispatch();
   const pathname = location.pathname;
 
-  const { mobileMode, isBotEnabled } = useTheme();
+  const { mobileMode, isBotEnabled, isNarrowViewport } = useTheme();
+  const isCompactMobile = mobileMode || isNarrowViewport;
+  const { speak: speakUtterance } = useSpeech();
   const {
     coachMode,
     setCoachMode,
@@ -358,13 +361,7 @@ export function FitCompanion() {
     setIsProactiveHUDOpen(true);
 
     const textToSpeak = typewriterText || scrollAdvice || hoverAdvice || speechText;
-    if (textToSpeak && typeof window !== 'undefined' && 'speechSynthesis' in window) {
-      window.speechSynthesis.cancel();
-      const utterance = new SpeechSynthesisUtterance(textToSpeak);
-      utterance.rate = 1.05;
-      utterance.pitch = 1.1;
-      window.speechSynthesis.speak(utterance);
-    }
+    if (textToSpeak) speakUtterance(textToSpeak);
 
     if (pathname.includes('health')) {
       dispatch(setWearableModalOpen(true));
@@ -421,22 +418,123 @@ export function FitCompanion() {
         onClose={() => setIsProactiveHUDOpen(false)}
       />
 
-      {mobileMode ? (
-        <div className={`fixed bottom-4 right-4 z-[50] pointer-events-auto flex flex-col items-center`}>
-          <div
-            onClick={handleBotDirectClick}
-            className="w-16 h-16 rounded-full bg-[var(--bg-secondary)] border-2 border-[var(--accent-primary)] shadow-2xl flex items-center justify-center cursor-pointer hover:scale-110 transition-all overflow-hidden animate-morph"
-            title="Click for Proactive AI Voice Suggestions"
-          >
-            <Canvas gl={{ alpha: true }} camera={{ position: [0, 0.1, 1.2], fov: 45 }}>
-              <ambientLight intensity={1.5} />
-              <directionalLight position={[1, 2, 1]} intensity={2.0} />
-              <Suspense fallback={null}>
-                <CharacterRenderer isSpeaking={isSpeaking} isOverlayMode={false} />
-              </Suspense>
-            </Canvas>
+      {isCompactMobile ? (
+        <>
+          <div className={`fixed bottom-20 right-4 z-[50] pointer-events-auto flex flex-col items-center gap-2`}>
+            {/* Chat trigger — previously only reachable on desktop, mobile had no way
+                to open the text/mic chat interface at all. */}
+            <button
+              onClick={toggleChatBox}
+              title="Chat with 3D AI Coach"
+              className="w-11 h-11 rounded-full bg-[var(--accent-primary)] text-slate-950 shadow-xl flex items-center justify-center hover:scale-110 transition-all"
+            >
+              <MessageSquare className="w-5 h-5" />
+            </button>
+            <div
+              onClick={handleBotDirectClick}
+              className="w-16 h-16 rounded-full bg-[var(--bg-secondary)] border-2 border-[var(--accent-primary)] shadow-2xl flex items-center justify-center cursor-pointer hover:scale-110 transition-all overflow-hidden animate-morph"
+              title="Click for Proactive AI Voice Suggestions"
+            >
+              <Canvas gl={{ alpha: true }} camera={{ position: [0, 0.1, 1.2], fov: 45 }}>
+                <ambientLight intensity={1.5} />
+                <directionalLight position={[1, 2, 1]} intensity={2.0} />
+                <Suspense fallback={null}>
+                  <CharacterRenderer isSpeaking={isSpeaking} isOverlayMode={false} />
+                </Suspense>
+              </Canvas>
+            </div>
           </div>
-        </div>
+
+          {/* Mobile chat sheet — same chat/mic functionality as desktop, laid out as
+              a full-width bottom sheet instead of a floating 80/96-width box. */}
+          {coachMode === 'chat' && (
+            <div className="fixed inset-0 z-[55] flex flex-col justify-end pointer-events-none">
+              <div onClick={() => setCoachMode('docked')} className="absolute inset-0 bg-slate-950/70 backdrop-blur-sm pointer-events-auto" />
+              <div className="relative pointer-events-auto rounded-t-3xl bg-[var(--bg-secondary)] border-t border-[var(--border-color)] shadow-2xl p-4 space-y-3 max-h-[80vh] flex flex-col animate-in slide-in-from-bottom duration-300">
+                <div className="flex items-center justify-between border-b border-[var(--border-color)] pb-2.5 shrink-0">
+                  <div className="flex items-center gap-2">
+                    <div className="w-7 h-7 rounded-xl bg-[var(--accent-glow)] text-[var(--accent-primary)] flex items-center justify-center font-bold text-xs">
+                      <Sparkles className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <h4 className="font-extrabold text-xs">3D FitAI Assistant</h4>
+                      <p className="text-[10px] text-[var(--text-secondary)]">Voice & Chat Interface</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <button
+                      onClick={() => setIsMuted(!isMuted)}
+                      title={isMuted ? 'Unmute Voice' : 'Mute Voice'}
+                      className="p-1.5 rounded-lg text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+                    >
+                      {isMuted ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4 text-[var(--accent-primary)]" />}
+                    </button>
+                    <button onClick={() => setCoachMode('docked')} className="p-1.5 rounded-lg text-[var(--text-secondary)] hover:text-[var(--text-primary)]">
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+
+                <div className="space-y-2.5 overflow-y-auto pr-1 text-xs flex-1">
+                  {chatMessages.map((msg, i) => (
+                    <div key={i} className={`flex gap-2 ${msg.sender === 'user' ? 'justify-end' : 'justify-start'}`}>
+                      <div className={`p-3 rounded-2xl max-w-[85%] text-xs leading-relaxed ${
+                        msg.sender === 'user'
+                          ? 'bg-[var(--accent-primary)] text-slate-950 font-bold'
+                          : 'bg-[var(--bg-tertiary)] border border-[var(--border-color)] text-[var(--text-primary)]'
+                      }`}>
+                        <p>{msg.text}</p>
+                        {msg.proposedAction && (
+                          <div className="mt-2 p-2.5 rounded-xl bg-[var(--bg-secondary)] border border-[var(--accent-primary)]/50 space-y-1.5 text-[11px] animate-in zoom-in-95">
+                            <div className="text-[9px] font-extrabold text-[var(--accent-primary)] flex items-center gap-1 uppercase tracking-wider">
+                              <Sparkles className="w-3 h-3" /> PROPOSED SYSTEM CHANGE
+                            </div>
+                            <p className="font-extrabold text-[var(--text-primary)] leading-tight">{msg.proposedAction.description}</p>
+                            {!executedActions[i] ? (
+                              <button
+                                onClick={() => { executeProposedAction(msg.proposedAction); setExecutedActions(prev => ({ ...prev, [i]: true })); }}
+                                className="w-full mt-1 py-1.5 px-2 rounded-lg bg-[var(--accent-primary)] text-slate-950 font-extrabold text-[10px] shadow hover:opacity-90 transition-all flex items-center justify-center gap-1"
+                              >
+                                <Check className="w-3 h-3 stroke-[3]" /> YES, APPLY CHANGES
+                              </button>
+                            ) : (
+                              <div className="text-[10px] font-bold text-emerald-400 flex items-center gap-1 pt-0.5">
+                                <CheckCircle2 className="w-3.5 h-3.5" /> System Updated Successfully!
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                <form onSubmit={handleSendText} className="flex items-center gap-1.5 pt-2 border-t border-[var(--border-color)] shrink-0">
+                  <input
+                    type="text"
+                    placeholder="Type command or talk to 3D AI Coach..."
+                    value={inputText}
+                    onChange={(e) => setInputText(e.target.value)}
+                    className="flex-1 px-3 py-2.5 rounded-xl bg-[var(--bg-tertiary)] border border-[var(--border-color)] text-xs text-[var(--text-primary)] focus:outline-none focus:border-[var(--accent-primary)]"
+                  />
+                  <button
+                    type="button"
+                    onClick={toggleVoiceListening}
+                    className={`p-2.5 rounded-xl border transition-all ${
+                      isListening ? 'bg-rose-500 text-white animate-pulse' : 'bg-[var(--bg-tertiary)] border-[var(--border-color)] text-[var(--accent-primary)]'
+                    }`}
+                    title="Speak to 3D AI Coach Out Loud"
+                  >
+                    {isListening ? <MicOff className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
+                  </button>
+                  <button type="submit" className="p-2.5 rounded-xl bg-[var(--accent-primary)] text-slate-950 hover:opacity-90 font-bold shadow">
+                    <Send className="w-4 h-4" />
+                  </button>
+                </form>
+              </div>
+            </div>
+          )}
+        </>
       ) : coachMode === 'spatial' ? (
         <div className="fixed inset-0 z-[60] pointer-events-none flex flex-col items-center justify-between p-6 sm:p-8 animate-in fade-in duration-300">
           <div className="absolute inset-0 bg-slate-950/85 backdrop-blur-md pointer-events-auto" />

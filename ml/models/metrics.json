@@ -1,9 +1,10 @@
 {
   "recovery": {
-    "mae": 2.2496667070909546,
-    "rmse": 2.775565202835543,
-    "r2": 0.9049002646892159
+    "mae": 2.2920269881906155,
+    "rmse": 2.8871584490496214,
+    "r2": 0.917172455270222
   },
+  "trained_at": "2026-07-30T06:14:58Z",
   "injury": {
     "f1": 1.0
   },
@@ -12,5 +13,44 @@
     "embedding_dim": 384,
     "encoder": "all-MiniLM-L6-v2"
   },
-  "trained_at": "2026-07-27T16:56:19Z"
+  "bodyfat": {
+    "mae": 4.426614083741841,
+    "rmse": 5.663480937752431,
+    "r2": 0.4490187891676518
+  },
+  "diabetes_risk": {
+    "f1": 0.7728210362903655
+  },
+  "cardio_risk": {
+    "f1": 0.7946124418623108
+  },
+  "activity_recognition": {
+    "f1": 0.9369112724682047
+  },
+  "rehab_status": {
+    "f1": 1.0
+  },
+  "stress_level": {
+    "f1": 1.0
+  },
+  "meal_recommender": {
+    "count": 255,
+    "embedding_dim": 384,
+    "encoder": "all-MiniLM-L6-v2"
+  },
+  "meditation_recommender": {
+    "count": 68,
+    "embedding_dim": 384,
+    "encoder": "all-MiniLM-L6-v2"
+  },
+  "yoga_pose": {
+    "accuracy": 0.902127659574468,
+    "f1": 0.9032125768967874
+  },
+  "meal_photo": {
+    "accuracy": 0.73,
+    "f1": 0.7321825396825394,
+    "classes": 20,
+    "note": "beta subset, not full Food-101"
+  }
 }

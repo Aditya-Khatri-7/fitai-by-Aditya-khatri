@@ -23,8 +23,10 @@ export const ForgotPassword = () => {
       toast.success('If the email exists, a 6-digit OTP code has been sent.');
       navigate(`/verify-reset-otp?email=${encodeURIComponent(email)}`);
     } catch (err) {
-      toast.success('Verification OTP code sent!');
-      navigate(`/verify-reset-otp?email=${encodeURIComponent(email)}`);
+      // A failed request must not claim success and move the user forward —
+      // that previously masked a missing backend and, worse, would do the same
+      // for a genuinely failed reset-password call later in this same flow.
+      toast.error(err.response?.data?.message || 'Failed to send reset code. Please try again.');
     } finally {
       setLoading(false);
     }

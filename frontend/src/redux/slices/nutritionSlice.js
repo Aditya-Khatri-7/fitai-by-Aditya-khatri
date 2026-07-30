@@ -1,5 +1,6 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 import api from '../../services/api';
+import { logout } from './authSlice';
 
 export const fetchTodayMealPlan = createAsyncThunk('nutrition/fetchToday', async (_, { rejectWithValue }) => {
   try {
@@ -38,12 +39,39 @@ export const generateWeekOfMealPlans = createAsyncThunk('nutrition/generateWeek'
   }
 });
 
-export const regenerateSingleMealRemote = createAsyncThunk('nutrition/regenerateSingleMeal', async ({ mealPlanId, mealType }, { rejectWithValue }) => {
+export const regenerateSingleMealRemote = createAsyncThunk('nutrition/regenerateSingleMeal', async ({ mealPlanId, mealType, dietTypeOverride, cuisineOverride }, { rejectWithValue }) => {
   try {
-    const { data } = await api.patch(`/nutrition/${mealPlanId}/meals/${mealType}/regenerate`);
+    const { data } = await api.patch(`/nutrition/${mealPlanId}/meals/${mealType}/regenerate`, { dietTypeOverride, cuisineOverride });
     return data;
   } catch (err) {
     return rejectWithValue(err.response?.data?.message || 'Failed to regenerate meal');
+  }
+});
+
+export const setMealConsumedRemote = createAsyncThunk('nutrition/setMealConsumed', async ({ mealPlanId, mealType, consumed }, { rejectWithValue }) => {
+  try {
+    const { data } = await api.patch(`/nutrition/${mealPlanId}/meals/${mealType}/consumed`, { consumed });
+    return data;
+  } catch (err) {
+    return rejectWithValue(err.response?.data?.message || 'Failed to update meal status');
+  }
+});
+
+export const fetchMealAlternatives = createAsyncThunk('nutrition/fetchAlternatives', async ({ mealType, cuisine }, { rejectWithValue }) => {
+  try {
+    const { data } = await api.get(`/nutrition/meals/${mealType}/alternatives`, { params: { cuisine } });
+    return data.options;
+  } catch (err) {
+    return rejectWithValue(err.response?.data?.message || 'Failed to load meal alternatives');
+  }
+});
+
+export const setMealManualRemote = createAsyncThunk('nutrition/setMealManual', async ({ mealPlanId, mealType, option, customMeal }, { rejectWithValue }) => {
+  try {
+    const { data } = await api.patch(`/nutrition/${mealPlanId}/meals/${mealType}/manual`, { option, customMeal });
+    return data;
+  } catch (err) {
+    return rejectWithValue(err.response?.data?.message || 'Failed to set meal');
   }
 });
 
@@ -273,9 +301,28 @@ const nutritionSlice = createSlice({
         }
       })
 
+      .addCase(setMealManualRemote.fulfilled, (state, action) => {
+        const plan = action.payload.mealPlan;
+        upsertIntoRange(state.mealPlanRange, plan);
+        if (isSameDay(plan.date)) {
+          state.todayMealPlan = plan;
+        }
+      })
+
+      .addCase(setMealConsumedRemote.fulfilled, (state, action) => {
+        const plan = action.payload;
+        upsertIntoRange(state.mealPlanRange, plan);
+        if (isSameDay(plan.date)) {
+          state.todayMealPlan = plan;
+        }
+      })
+
       .addCase(fetchGroceryList.fulfilled, (state, action) => {
         state.groceryList = action.payload;
-      });
+      })
+      // Without this, logging in as a different user in the same tab kept showing
+      // the previous account's meal plan/grocery data until a fetch happened to fire.
+      .addCase(logout, () => initialState);
   }
 });
 

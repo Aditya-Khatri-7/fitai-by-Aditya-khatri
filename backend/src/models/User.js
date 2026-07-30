@@ -13,7 +13,14 @@ const UserSchema = new mongoose.Schema({
     weight: Number,
     bodyFatPercentage: Number,
     fitnessLevel: { type: String, enum: ['beginner', 'intermediate', 'advanced', 'athlete'], default: 'intermediate' },
-    activityLevel: { type: String, enum: ['sedentary', 'light', 'moderate', 'active', 'very_active'], default: 'moderate' }
+    activityLevel: { type: String, enum: ['sedentary', 'light', 'moderate', 'active', 'very_active'], default: 'moderate' },
+    // Optional inputs for the Body Fat % estimator (ml/inference_service.py
+    // /predict/bodyfat) — the two most predictive Navy-method circumference
+    // measurements. Left undefined when the user hasn't measured them; the ML
+    // service falls back to population-average defaults in that case.
+    neckCircumference: Number,
+    abdomenCircumference: Number,
+    familyHistoryDiabetes: Boolean
   },
 
   healthProfile: {
@@ -48,6 +55,14 @@ const UserSchema = new mongoose.Schema({
     cookingSkill: { type: String, default: 'intermediate' },
     country: String,
     religion: String,
+    cuisine: { type: String, default: 'any' }, // overall preferred regional cuisine (north/south/east/west/any)
+    cuisinePerMeal: {
+      breakfast: String, lunch: String, snack: String, dinner: String
+    },
+    // Real, lightweight learning signal: exercise names the user has swapped away
+    // from repeatedly get soft-penalized in future recommendations (not hard-excluded
+    // — the recommender's `avoid` param nudges score down, it doesn't block outright).
+    dislikedExerciseNames: [String],
     cheatDays: [{
       dayOfWeek: { type: Number, min: 0, max: 6 }, // 0 = Sunday
       type: { type: String, enum: ['full', 'workout_only', 'meal_only'], default: 'full' }
@@ -68,6 +83,52 @@ const UserSchema = new mongoose.Schema({
     longest: { type: Number, default: 0 },
     lastWorkoutDate: Date
   },
+
+  gamification: {
+    level: { type: Number, default: 1 },
+    xp: { type: Number, default: 0 },
+    xpToNextLevel: { type: Number, default: 1000 },
+    rankTitle: { type: String, default: 'Novice Lifter' },
+    archetype: {
+      id: String, name: String, tagline: String, icon: String, color: String,
+      bonusStats: { strength: Number, endurance: Number, mobility: Number, consistency: Number, recovery: Number }
+    },
+    attributes: {
+      strength: { type: Number, default: 10 },
+      endurance: { type: Number, default: 10 },
+      mobility: { type: Number, default: 10 },
+      consistency: { type: Number, default: 5 },
+      recovery: { type: Number, default: 10 }
+    },
+    dailyQuestsCompleted: [String],
+    dailyQuestsResetDate: Date,
+    unlockedAchievementIds: [String],
+    unlockedPerkIds: [String],
+    prHallOfFame: [{
+      title: String, value: String, date: { type: Date, default: Date.now }
+    }],
+    totalWorkoutsCompleted: { type: Number, default: 0 },
+    totalRepsLogged: { type: Number, default: 0 },
+    longestCompletedWorkoutMins: { type: Number, default: 0 },
+    // XP-gated ad-hoc cheat system — separate from the free recurring weekly
+    // cheatDays in preferences (e.g. Sunday). Redeeming spends banked XP so
+    // cheating has to be earned through consistency, not unlimited.
+    cheatRedemptions: [{
+      date: { type: Date, default: Date.now },
+      type: { type: String, enum: ['meal', 'day'] },
+      mealSlot: String,
+      xpSpent: Number
+    }]
+  },
+
+  community: {
+    joined: { type: Boolean, default: false },
+    joinedAt: Date
+  },
+
+  // Password reset — OTP is bcrypt-hashed at rest, never stored plaintext.
+  passwordResetOtpHash: String,
+  passwordResetOtpExpiry: Date,
 
   onboardingCompleted: { type: Boolean, default: false }
 }, { timestamps: true });
