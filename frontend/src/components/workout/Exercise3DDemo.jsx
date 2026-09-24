@@ -1,5 +1,5 @@
 import React, { useState, useRef, Suspense, useEffect } from 'react';
-import { Canvas, useFrame } from '@react-three/fiber';
+import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { OrbitControls } from '@react-three/drei';
 import * as THREE from 'three';
 import { CharacterRenderer } from '../../three/CharacterRenderer';
@@ -28,7 +28,7 @@ import toast from 'react-hot-toast';
 
 // Interactive Camera Rig for Angle Presets
 function CameraRig({ cameraPreset, controlsRef, modelRef }) {
-  const { camera } = useThreeTarget();
+  const { camera } = useThree();
   const targetPos = useRef(new THREE.Vector3(0, 0, 3.2));
   const targetLook = useRef(new THREE.Vector3(0, 0, 0));
 
@@ -56,11 +56,6 @@ function CameraRig({ cameraPreset, controlsRef, modelRef }) {
   });
 
   return null;
-}
-
-function useThreeTarget() {
-  const { camera } = require('@react-three/fiber').useThree();
-  return { camera };
 }
 
 export function Exercise3DDemo({ exercise, isOpen, onClose }) {

@@ -230,10 +230,15 @@ export async function getWorkoutVersions(req, res) {
 export async function updateWorkoutStatus(req, res) {
   try {
     const { status, totalReps } = req.body;
+    // findOneAndUpdate skips schema validation by default, so an invalid value would be saved and then break every later save().
+    const allowedStatuses = Workout.schema.path('status').enumValues;
+    if (!allowedStatuses.includes(status)) {
+      return res.status(400).json({ message: `status must be one of: ${allowedStatuses.join(', ')}` });
+    }
     const workout = await Workout.findOneAndUpdate(
       { _id: req.params.id, userId: req.user._id },
       { status },
-      { new: true }
+      { new: true, runValidators: true }
     );
     if (!workout) return res.status(404).json({ message: 'Workout not found' });
 

@@ -8,6 +8,9 @@ export async function processHealthUpdate(req, res) {
   try {
     const { updateType, bodyPart, severity, recoveryEstimate, restrictions, doctorNotes } = req.body;
     const userId = req.user._id;
+    if (!updateType || typeof updateType !== 'string') {
+      return res.status(400).json({ success: false, message: 'updateType is required' });
+    }
 
     // 1. Create HealthUpdate audit document
     const healthUpdateDoc = await HealthUpdate.create({

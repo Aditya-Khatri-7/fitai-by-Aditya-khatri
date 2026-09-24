@@ -148,8 +148,8 @@ export function WorkoutBuilder({ onStartSession }) {
       {dateBanner}
 
       {/* Top Header Controls with Plan Selector */}
-      <div className={`flex flex-col ${isCompact ? '' : 'md:flex-row md:items-center'} items-start justify-between gap-4 p-4 sm:p-6 rounded-3xl bg-[var(--bg-secondary)] border border-[var(--border-color)] shadow-2xl`}>
-        <div className={`space-y-2 w-full ${isCompact ? '' : 'md:w-auto'} min-w-0`}>
+      <div className={`flex flex-col ${isCompact ? '' : 'lg:flex-row lg:items-center'} items-start justify-between gap-4 p-4 sm:p-6 rounded-3xl bg-[var(--bg-secondary)] border border-[var(--border-color)] shadow-2xl`}>
+        <div className="space-y-2 min-w-0 w-full">
           <div className="flex flex-wrap items-center gap-2">
             <span className="px-2.5 py-0.5 rounded-full bg-[var(--accent-glow)] text-[var(--accent-primary)] border border-[var(--border-color)] text-xs font-bold whitespace-nowrap">
               AI Version {activeWorkout.version}
@@ -162,7 +162,7 @@ export function WorkoutBuilder({ onStartSession }) {
         </div>
 
         {/* Plan Switcher Dropdown & Actions */}
-        <div className={`flex flex-col ${isCompact ? '' : 'sm:flex-row sm:items-center'} items-stretch gap-3 w-full ${isCompact ? '' : 'md:w-auto'}`}>
+        <div className={`flex flex-col ${isCompact ? '' : 'sm:flex-row sm:items-center'} items-stretch gap-3 w-full ${isCompact ? '' : 'lg:w-auto lg:shrink-0'}`}>
 
           {/* Plan Selector */}
           <div className="relative flex items-center w-full">
