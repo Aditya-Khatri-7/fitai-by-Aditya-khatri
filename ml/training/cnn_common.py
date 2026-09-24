@@ -35,27 +35,40 @@ class ManifestImageDataset(Dataset):
     return _TRANSFORM(img), self.labels[idx]
 
 
-def build_model(num_classes):
-  # Frozen ImageNet-pretrained MobileNetV2 backbone + a small trainable head —
-  # the only CPU-feasible approach for these dataset sizes in this session (no
-  # GPU available). Only the final classifier layer is trained.
-  model = tv_models.mobilenet_v2(weights=tv_models.MobileNet_V2_Weights.IMAGENET1K_V1)
-  for param in model.features.parameters():
-    param.requires_grad = False
-  model.classifier[1] = nn.Linear(model.last_channel, num_classes)
+def build_model(num_classes, arch='mobilenet_v2'):
+  # Frozen ImageNet-pretrained backbone + a small trainable head — the only
+  # CPU-feasible approach for these dataset sizes (no GPU available). Only the
+  # final classifier layer is trained. MobileNetV2 is the shipped default;
+  # ResNet-18 is supported for the head-to-head in benchmark_backbones.py.
+  if arch == 'mobilenet_v2':
+    model = tv_models.mobilenet_v2(weights=tv_models.MobileNet_V2_Weights.IMAGENET1K_V1)
+    for param in model.features.parameters():
+      param.requires_grad = False
+    model.classifier[1] = nn.Linear(model.last_channel, num_classes)
+  elif arch == 'resnet18':
+    model = tv_models.resnet18(weights=tv_models.ResNet18_Weights.IMAGENET1K_V1)
+    for param in model.parameters():
+      param.requires_grad = False
+    model.fc = nn.Linear(model.fc.in_features, num_classes)
+  else:
+    raise ValueError(f"Unknown arch: {arch}")
   return model
 
 
-def train_image_classifier(display_name, train_df, val_df, test_df, class_names, epochs=10, batch_size=32, lr=1e-3):
-  print(f"[Model] Training {display_name} (MobileNetV2 transfer learning, CPU, {len(class_names)} classes)...")
+def head_parameters(model):
+  return [p for p in model.parameters() if p.requires_grad]
+
+
+def train_image_classifier(display_name, train_df, val_df, test_df, class_names, epochs=10, batch_size=32, lr=1e-3, arch='mobilenet_v2'):
+  print(f"[Model] Training {display_name} ({arch} transfer learning, CPU, {len(class_names)} classes)...")
   class_to_idx = {c: i for i, c in enumerate(class_names)}
 
   train_loader = DataLoader(ManifestImageDataset(train_df, class_to_idx), batch_size=batch_size, shuffle=True, num_workers=0)
   val_loader = DataLoader(ManifestImageDataset(val_df, class_to_idx), batch_size=batch_size, shuffle=False, num_workers=0)
   test_loader = DataLoader(ManifestImageDataset(test_df, class_to_idx), batch_size=batch_size, shuffle=False, num_workers=0)
 
-  model = build_model(len(class_names))
-  optimizer = torch.optim.Adam(model.classifier.parameters(), lr=lr)
+  model = build_model(len(class_names), arch)
+  optimizer = torch.optim.Adam(head_parameters(model), lr=lr)
   criterion = nn.CrossEntropyLoss()
 
   best_val_acc = 0.0

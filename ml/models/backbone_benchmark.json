@@ -1,0 +1,42 @@
+{
+  "yoga_mobilenet_v2": {
+    "test_accuracy": 0.9042553191489362,
+    "f1": 0.9051208532810536,
+    "total_params_m": 2.230277,
+    "checkpoint_mb": 9.160843,
+    "cpu_latency_ms": 7.888900000580179,
+    "test_n": 470,
+    "classes": 5,
+    "epochs": 8
+  },
+  "yoga_resnet18": {
+    "test_accuracy": 0.9,
+    "f1": 0.8996802337050028,
+    "total_params_m": 11.179077,
+    "checkpoint_mb": 44.793291,
+    "cpu_latency_ms": 7.2723999992376775,
+    "test_n": 470,
+    "classes": 5,
+    "epochs": 8
+  },
+  "food_mobilenet_v2": {
+    "test_accuracy": 0.72,
+    "f1": 0.7210128596893303,
+    "total_params_m": 2.249492,
+    "checkpoint_mb": 9.237707,
+    "cpu_latency_ms": 7.965750000039407,
+    "test_n": 100,
+    "classes": 20,
+    "epochs": 12
+  },
+  "food_resnet18": {
+    "test_accuracy": 0.62,
+    "f1": 0.6023251748251749,
+    "total_params_m": 11.186772,
+    "checkpoint_mb": 44.824075,
+    "cpu_latency_ms": 7.471099999747821,
+    "test_n": 100,
+    "classes": 20,
+    "epochs": 12
+  }
+}
